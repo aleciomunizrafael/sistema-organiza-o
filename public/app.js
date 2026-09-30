@@ -517,7 +517,12 @@
     count.textContent = w.undated.length;
     h.appendChild(count);
     if (!w.undated.length) emptyLine(main, 'nada pendente');
-    for (const t of w.undated) main.appendChild(renderPaperItem(t));
+    else {
+      const items = document.createElement('div');
+      items.className = 'paper-items';
+      for (const t of w.undated) items.appendChild(renderPaperItem(t));
+      main.appendChild(items);
+    }
     main.appendChild(renderAddLine({ placeholder: 'Nova demanda… (Enter para anotar)' }));
 
     // ----- folha secundária: sem data (algum dia) -----
@@ -531,7 +536,12 @@
     hint.textContent = 'sem prazo e sem pressa';
     hs.appendChild(hint);
     if (!(w.someday || []).length) emptyLine(some, 'nada guardado');
-    for (const t of w.someday || []) some.appendChild(renderPaperItem(t));
+    else {
+      const items = document.createElement('div');
+      items.className = 'paper-items';
+      for (const t of w.someday || []) items.appendChild(renderPaperItem(t));
+      some.appendChild(items);
+    }
     some.appendChild(renderAddLine({ someday: true, placeholder: 'Guardar para depois… ex.: Comprar papel de outro fornecedor quando o papel acabar' }));
 
     // ----- folha da semana -----

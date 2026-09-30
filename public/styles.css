@@ -200,6 +200,11 @@ body.wide #app { max-width: none; padding: 0 clamp(16px, 3vw, 48px); }
   .week-side { position: sticky; top: 60px; max-height: calc(100vh - 72px); overflow-y: auto; padding-bottom: 8px; }
   body.wide .paper-main { min-height: calc(100vh - 380px); }
   body.wide .fab { left: auto; right: 32px; transform: none; }
+  /* Duas colunas quando houver espaço (cada coluna com pelo menos 340px), leitura de cima para baixo */
+  .paper-main .paper-items, .paper-someday .paper-items {
+    columns: 2 340px; column-gap: 44px; column-rule: 1px solid var(--rule); column-fill: balance;
+  }
+  .paper-items .paper-item { break-inside: avoid; page-break-inside: avoid; }
 }
 @media (min-width: 1500px) {
   .week-layout { grid-template-columns: minmax(0, 3fr) minmax(360px, 1fr); }
