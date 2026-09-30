@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Organiza</title>
+  <meta name="description" content="Tarefas e demandas pessoais">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Organiza">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button class="icon-btn" id="btn-home" title="Início" aria-label="Início">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+      <h1 id="page-title">Organiza</h1>
+      <button class="icon-btn" id="btn-settings" title="Configurações" aria-label="Configurações">
+        <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+    </header>
+
+    <div id="notices"></div>
+
+    <main id="main">
+      <!-- Início: cartões -->
+      <section id="view-home" class="view">
+        <div class="cards">
+          <button class="card c-today" data-view="today">
+            <div class="card-top"><span class="card-icon">📅</span><span class="card-count" id="count-today">0</span></div>
+            <div class="card-label">Hoje</div>
+          </button>
+          <button class="card c-scheduled" data-view="scheduled">
+            <div class="card-top"><span class="card-icon">🗓️</span><span class="card-count" id="count-scheduled">0</span></div>
+            <div class="card-label">Agendadas</div>
+          </button>
+          <button class="card c-all" data-view="all">
+            <div class="card-top"><span class="card-icon">📥</span><span class="card-count" id="count-all">0</span></div>
+            <div class="card-label">Todas</div>
+          </button>
+          <button class="card c-done" data-view="completed">
+            <div class="card-top"><span class="card-icon">✅</span><span class="card-count" id="count-completed">0</span></div>
+            <div class="card-label">Concluídas</div>
+          </button>
+        </div>
+        <div class="list-group">
+          <button class="row-link" data-view="templates">
+            <span class="row-icon">🔁</span><span class="row-text">Recorrentes</span>
+            <span class="row-count" id="count-templates">0</span><span class="chev">›</span>
+          </button>
+        </div>
+        <div class="quick-add">
+          <input id="quick-input" type="text" placeholder="Nova tarefa… ex.: Enviar relatório até sexta" autocomplete="off">
+          <button id="quick-add-btn" class="primary">Adicionar</button>
+        </div>
+        <div id="quick-preview" class="hint"></div>
+      </section>
+
+      <!-- Lista -->
+      <section id="view-list" class="view hidden">
+        <div id="list-summary" class="hint"></div>
+        <ul id="task-list" class="tasks"></ul>
+        <div id="list-empty" class="empty hidden"></div>
+      </section>
+
+      <!-- Configurações -->
+      <section id="view-settings" class="view hidden">
+        <h2>WhatsApp</h2>
+        <div class="panel">
+          <div class="status-line"><span class="dot" id="wa-dot"></span><span id="wa-status-text">Carregando…</span></div>
+          <div id="wa-me" class="hint"></div>
+          <div id="wa-qr-wrap" class="qr hidden">
+            <img id="wa-qr" alt="QR code do WhatsApp">
+            <p class="hint">No celular: WhatsApp → Dispositivos conectados → Conectar dispositivo → aponte para este código.</p>
+          </div>
+          <div class="btn-row">
+            <button id="wa-reconnect" class="secondary">Reconectar / gerar QR</button>
+            <button id="wa-logout" class="danger-outline">Desconectar sessão</button>
+          </div>
+          <div id="wa-stats" class="hint"></div>
+        </div>
+
+        <h2>Captura de demandas</h2>
+        <div class="panel form">
+          <label>Grupo monitorado
+            <select id="s-group"><option value="">— conecte o WhatsApp para listar —</option></select>
+          </label>
+          <label>Marcador (pode ser mais de um, separados por vírgula)
+            <input id="s-marker" type="text" placeholder="#demanda">
+          </label>
+          <label class="check"><input id="s-reply" type="checkbox"> Responder no grupo confirmando a captura</label>
+          <label>Texto da resposta (use {titulo} e {detalhes})
+            <input id="s-reply-text" type="text">
+          </label>
+          <label class="check"><input id="s-own" type="checkbox"> Aceitar demandas enviadas por mim mesmo</label>
+          <label>Remetentes permitidos (nomes ou números, separados por vírgula; vazio = todos)
+            <input id="s-senders" type="text" placeholder="Maria, 5511999998888">
+          </label>
+          <label>Avisar se o bot ficar offline por mais de (horas; 0 desativa)
+            <input id="s-offline" type="number" min="0" step="1">
+          </label>
+          <div class="btn-row"><button id="s-save" class="primary">Salvar</button><span id="s-saved" class="hint"></span></div>
+        </div>
+
+        <h2>Como a chefe envia</h2>
+        <div class="panel hint">
+          <p>Qualquer mensagem no grupo com o marcador vira tarefa. Exemplos:</p>
+          <ul>
+            <li><code>#demanda Revisar contrato da Alfa até sexta</code></li>
+            <li><code>#demanda urgente Ligar para fornecedor amanhã</code></li>
+            <li><code>#demanda Fechar planilha todo dia 5</code> (cria recorrência mensal)</li>
+            <li><code>#demanda Enviar relatório toda segunda</code></li>
+          </ul>
+          <p>A primeira linha vira o título; as linhas seguintes viram observações.</p>
+        </div>
+      </section>
+    </main>
+
+    <button id="fab" class="fab" title="Nova tarefa">＋ Nova tarefa</button>
+  </div>
+
+  <!-- Editor de tarefa -->
+  <div id="sheet" class="sheet hidden">
+    <div class="sheet-backdrop"></div>
+    <div class="sheet-body" role="dialog" aria-modal="true">
+      <div class="sheet-head">
+        <button id="sheet-cancel" class="link">Cancelar</button>
+        <strong id="sheet-title">Nova tarefa</strong>
+        <button id="sheet-save" class="link strong">Salvar</button>
+      </div>
+      <form id="task-form" class="form" autocomplete="off">
+        <input type="hidden" id="f-id">
+        <input id="f-title" type="text" placeholder="Título" required>
+        <textarea id="f-notes" rows="3" placeholder="Observações"></textarea>
+        <div class="two">
+          <label>Entrar na lista em
+            <input id="f-start" type="date">
+          </label>
+          <label id="f-due-wrap">Prazo
+            <input id="f-due" type="date">
+          </label>
+        </div>
+        <label class="check"><input id="f-priority" type="checkbox"> Prioridade alta</label>
+        <label>Repetir
+          <select id="f-repeat">
+            <option value="">Nunca</option>
+            <option value="daily">Todos os dias</option>
+            <option value="weekdays">Dias úteis</option>
+            <option value="weekly">Toda semana</option>
+            <option value="biweekly">A cada 2 semanas</option>
+            <option value="monthly">Todo mês</option>
+            <option value="yearly">Todo ano</option>
+            <option value="custom">Personalizado…</option>
+          </select>
+        </label>
+        <div id="f-custom" class="custom hidden">
+          <div class="two">
+            <label>A cada
+              <input id="f-interval" type="number" min="1" value="1">
+            </label>
+            <label>Período
+              <select id="f-freq">
+                <option value="daily">dia(s)</option>
+                <option value="weekly">semana(s)</option>
+                <option value="monthly">mês(es)</option>
+                <option value="yearly">ano(s)</option>
+              </select>
+            </label>
+          </div>
+          <div id="f-weekdays" class="weekdays">
+            <label><input type="checkbox" value="1"> Seg</label>
+            <label><input type="checkbox" value="2"> Ter</label>
+            <label><input type="checkbox" value="3"> Qua</label>
+            <label><input type="checkbox" value="4"> Qui</label>
+            <label><input type="checkbox" value="5"> Sex</label>
+            <label><input type="checkbox" value="6"> Sáb</label>
+            <label><input type="checkbox" value="0"> Dom</label>
+          </div>
+          <label id="f-monthday-wrap" class="hidden">Dia do mês
+            <input id="f-monthday" type="number" min="1" max="31">
+          </label>
+        </div>
+        <label id="f-until-wrap" class="hidden">Repetir até (opcional)
+          <input id="f-until" type="date">
+        </label>
+        <div id="f-source" class="source hidden"></div>
+        <div class="btn-row" id="f-actions">
+          <button type="button" id="f-delete" class="danger-outline hidden">Excluir</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,540 @@
+/* Organiza — interface (vanilla JS) */
+(() => {
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const VIEW_TITLES = {
+    home: 'Organiza', today: 'Hoje', scheduled: 'Agendadas', all: 'Todas',
+    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações',
+  };
+  const WEEKDAYS_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+  const state = { view: 'home', today: null, counts: {}, tasks: [], settings: null, wa: null, editing: null };
+  let refreshTimer = null;
+
+  // ---------- API ----------
+  async function api(method, url, body) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+    return data;
+  }
+
+  function toast(msg, ms = 2200) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.add('hidden'), ms);
+  }
+
+  // ---------- datas ----------
+  function todayYmd() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  function addDays(ymd, n) {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + n);
+    const p = (x) => String(x).padStart(2, '0');
+    return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+  }
+  function fmtDate(ymd, withWeekday = true) {
+    if (!ymd) return '';
+    const t = state.today || todayYmd();
+    if (ymd === t) return 'hoje';
+    if (ymd === addDays(t, 1)) return 'amanhã';
+    if (ymd === addDays(t, -1)) return 'ontem';
+    const [y, m, d] = ymd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const base = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}` + (y !== new Date().getFullYear() ? `/${y}` : '');
+    return withWeekday ? `${WEEKDAYS_SHORT[dt.getDay()]} ${base}` : base;
+  }
+  function fmtDateTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---------- navegação ----------
+  function show(view) {
+    state.view = view;
+    $('#page-title').textContent = VIEW_TITLES[view] || 'Organiza';
+    $('#view-home').classList.toggle('hidden', view !== 'home');
+    $('#view-settings').classList.toggle('hidden', view !== 'settings');
+    $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates'].includes(view));
+    $('#btn-home').style.visibility = view === 'home' ? 'hidden' : 'visible';
+    $('#fab').classList.toggle('hidden', view === 'settings');
+    history.replaceState(null, '', view === 'home' ? '#' : `#${view}`);
+    refresh();
+    startAutoRefresh();
+  }
+
+  async function refresh() {
+    try {
+      await loadNotices();
+      if (state.view === 'settings') { await loadSettings(); await loadWa(); return; }
+      const view = state.view === 'home' ? 'today' : state.view;
+      const data = await api('GET', `/api/tasks?view=${view}`);
+      state.today = data.today;
+      state.counts = data.counts;
+      state.tasks = data.tasks;
+      renderCounts();
+      if (state.view !== 'home') renderList();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  function renderCounts() {
+    const c = state.counts;
+    $('#count-today').textContent = c.today ?? 0;
+    $('#count-scheduled').textContent = c.scheduled ?? 0;
+    $('#count-all').textContent = c.all ?? 0;
+    $('#count-completed').textContent = c.completed ?? 0;
+    $('#count-templates').textContent = c.templates ?? 0;
+  }
+
+  // ---------- lista ----------
+  function renderList() {
+    const ul = $('#task-list');
+    const empty = $('#list-empty');
+    const summary = $('#list-summary');
+    ul.innerHTML = '';
+    summary.textContent = '';
+
+    if (!state.tasks.length) {
+      empty.textContent = {
+        today: 'Nada para hoje. 🎉', scheduled: 'Nenhuma tarefa agendada.', all: 'Nenhuma tarefa pendente.',
+        completed: 'Nenhuma tarefa concluída ainda.', templates: 'Nenhuma tarefa recorrente.',
+      }[state.view] || 'Nada aqui.';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+
+    if (state.view === 'today') {
+      const overdue = state.tasks.filter((t) => t.due_date && t.due_date < state.today).length;
+      summary.textContent = overdue ? `${overdue} atrasada${overdue > 1 ? 's' : ''}` : '';
+    }
+
+    // Agrupamento por data em Agendadas
+    let lastGroup = null;
+    for (const t of state.tasks) {
+      if (state.view === 'scheduled') {
+        const g = fmtDate(t.start_date);
+        if (g !== lastGroup) {
+          const h = document.createElement('li');
+          h.className = 'section-title';
+          h.textContent = g;
+          ul.appendChild(h);
+          lastGroup = g;
+        }
+      }
+      ul.appendChild(renderTask(t));
+    }
+  }
+
+  function renderTask(t) {
+    const li = document.createElement('li');
+    li.className = 'task' + (t.completed_at ? ' completed' : '');
+    li.dataset.id = t.id;
+
+    const check = document.createElement('button');
+    check.className = 'tick' + (t.completed_at ? ' done' : '') + (t.priority ? ' high' : '');
+    check.title = t.is_template ? (t.completed_at ? 'Reativar' : 'Pausar recorrência') : (t.completed_at ? 'Reabrir' : 'Concluir');
+    check.innerHTML = t.completed_at ? '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12.5 10 17l9-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : (t.is_template ? '🔁' : '');
+    if (t.is_template) check.style.fontSize = '12px';
+    check.addEventListener('click', (e) => { e.stopPropagation(); toggleComplete(t); });
+
+    const main = document.createElement('div');
+    main.className = 'task-main';
+    main.addEventListener('click', () => openEditor(t));
+
+    const title = document.createElement('div');
+    title.className = 'task-title';
+    if (t.priority) {
+      const p = document.createElement('span'); p.className = 'prio'; p.textContent = '!'; title.appendChild(p);
+    }
+    title.appendChild(document.createTextNode(t.title));
+    main.appendChild(title);
+
+    if (t.notes) {
+      const n = document.createElement('div');
+      n.className = 'task-notes';
+      n.textContent = t.notes.length > 160 ? t.notes.slice(0, 160) + '…' : t.notes;
+      main.appendChild(n);
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'task-meta';
+    const add = (text, cls = '') => {
+      const s = document.createElement('span'); s.className = 'badge ' + cls; s.textContent = text; meta.appendChild(s);
+    };
+
+    if (t.is_template) {
+      add('🔁 ' + t.recurrence_label);
+      if (t.completed_at) add('pausada');
+      else if (t.next_date) add('próxima: ' + fmtDate(t.next_date));
+    } else {
+      if (t.due_date) {
+        const cls = t.completed_at ? '' : t.due_date < state.today ? 'overdue' : t.due_date === state.today ? 'today' : '';
+        add('⏰ ' + fmtDate(t.due_date), cls);
+      }
+      if (t.start_date && t.start_date > state.today) add('entra ' + fmtDate(t.start_date));
+      if (t.template_id) add('🔁 recorrente');
+      if (t.completed_at) add('concluída ' + fmtDateTime(t.completed_at));
+    }
+    if (t.source === 'whatsapp') add('WhatsApp' + (t.source_sender ? ' · ' + t.source_sender.replace(/\s*\(\d+\)$/, '') : ''), 'wa');
+    if (meta.children.length) main.appendChild(meta);
+
+    const open = document.createElement('button');
+    open.className = 'task-open';
+    open.textContent = '›';
+    open.setAttribute('aria-label', 'Detalhes');
+    open.addEventListener('click', () => openEditor(t));
+
+    li.append(check, main, open);
+    return li;
+  }
+
+  async function toggleComplete(t) {
+    try {
+      await api('PATCH', `/api/tasks/${t.id}`, { completed: !t.completed_at });
+      toast(t.is_template ? (t.completed_at ? 'Recorrência reativada' : 'Recorrência pausada') : (t.completed_at ? 'Tarefa reaberta' : 'Concluída ✓'));
+      refresh();
+    } catch (e) { toast(e.message); }
+  }
+
+  // ---------- adição rápida ----------
+  let previewTimer = null;
+  $('#quick-input').addEventListener('input', () => {
+    clearTimeout(previewTimer);
+    const text = $('#quick-input').value.trim();
+    if (!text) { $('#quick-preview').textContent = ''; return; }
+    previewTimer = setTimeout(async () => {
+      try {
+        const p = await api('POST', '/api/parse', { text });
+        const parts = [];
+        if (p.recurrence) parts.push('🔁 ' + describeRule(p.recurrence) + (p.date ? ' a partir de ' + fmtDate(p.date) : ''));
+        else if (p.date) parts.push('⏰ prazo ' + fmtDate(p.date));
+        $('#quick-preview').textContent = parts.length ? `"${p.title}" — ${parts.join(', ')}` : '';
+      } catch { /* ignore */ }
+    }, 250);
+  });
+  async function quickAdd() {
+    const text = $('#quick-input').value.trim();
+    if (!text) return;
+    try {
+      await api('POST', '/api/tasks', { text });
+      $('#quick-input').value = '';
+      $('#quick-preview').textContent = '';
+      toast('Tarefa adicionada');
+      refresh();
+    } catch (e) { toast(e.message); }
+  }
+  $('#quick-add-btn').addEventListener('click', quickAdd);
+  $('#quick-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') quickAdd(); });
+
+  function describeRule(rule) {
+    if (!rule) return '';
+    const n = rule.interval || 1;
+    switch (rule.freq) {
+      case 'daily': return n === 1 ? 'todos os dias' : `a cada ${n} dias`;
+      case 'weekly': {
+        const wd = rule.weekdays || [];
+        if (n === 1 && wd.length === 5 && [1, 2, 3, 4, 5].every((x) => wd.includes(x))) return 'dias úteis';
+        const days = wd.length ? ' (' + wd.map((x) => WEEKDAYS_SHORT[x]).join(', ') + ')' : '';
+        return (n === 1 ? 'toda semana' : `a cada ${n} semanas`) + days;
+      }
+      case 'monthly': return (n === 1 ? 'todo mês' : `a cada ${n} meses`) + (rule.monthDay ? ` dia ${rule.monthDay}` : '');
+      case 'yearly': return n === 1 ? 'todo ano' : `a cada ${n} anos`;
+      default: return '';
+    }
+  }
+
+  // ---------- editor ----------
+  const sheet = $('#sheet');
+  function openEditor(task) {
+    state.editing = task || null;
+    $('#sheet-title').textContent = task ? (task.is_template ? 'Tarefa recorrente' : 'Tarefa') : 'Nova tarefa';
+    $('#f-id').value = task?.id || '';
+    $('#f-title').value = task?.title || '';
+    $('#f-notes').value = task?.notes || '';
+    $('#f-start').value = task?.start_date || '';
+    $('#f-due').value = task?.due_date || '';
+    $('#f-priority').checked = Boolean(task?.priority);
+    $('#f-delete').classList.toggle('hidden', !task);
+
+    // recorrência
+    const rule = task?.recurrence || null;
+    setRepeatFromRule(rule);
+    $('#f-until').value = rule?.until || '';
+
+    // origem
+    const src = $('#f-source');
+    if (task?.source === 'whatsapp') {
+      src.innerHTML = '';
+      const s = document.createElement('div');
+      s.innerHTML = `<strong>Recebida pelo WhatsApp</strong>` + (task.source_sender ? ` de ${escapeHtml(task.source_sender)}` : '')
+        + (task.source_timestamp ? ` em ${fmtDateTime(task.source_timestamp)}` : '') + `\n\n${escapeHtml(task.source_text || '')}`;
+      src.appendChild(s);
+      src.classList.remove('hidden');
+    } else if (task?.template_id) {
+      src.textContent = 'Ocorrência de uma tarefa recorrente. Para alterar a repetição, edite em Recorrentes.';
+      src.classList.remove('hidden');
+    } else {
+      src.classList.add('hidden');
+    }
+
+    updateRepeatUi();
+    sheet.classList.remove('hidden');
+    if (!task) setTimeout(() => $('#f-title').focus(), 50);
+  }
+  function closeEditor() { sheet.classList.add('hidden'); state.editing = null; }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function setRepeatFromRule(rule) {
+    const sel = $('#f-repeat');
+    $$('#f-weekdays input').forEach((c) => { c.checked = false; });
+    $('#f-interval').value = 1;
+    $('#f-monthday').value = '';
+    if (!rule) { sel.value = ''; return; }
+    const wd = rule.weekdays || [];
+    const n = rule.interval || 1;
+    const isWeekdays = rule.freq === 'weekly' && n === 1 && wd.length === 5 && [1, 2, 3, 4, 5].every((x) => wd.includes(x));
+    if (rule.freq === 'daily' && n === 1) sel.value = 'daily';
+    else if (isWeekdays) sel.value = 'weekdays';
+    else if (rule.freq === 'weekly' && n === 1 && !wd.length) sel.value = 'weekly';
+    else if (rule.freq === 'weekly' && n === 2 && !wd.length) sel.value = 'biweekly';
+    else if (rule.freq === 'monthly' && n === 1 && !rule.monthDay) sel.value = 'monthly';
+    else if (rule.freq === 'yearly' && n === 1) sel.value = 'yearly';
+    else {
+      sel.value = 'custom';
+      $('#f-freq').value = rule.freq;
+      $('#f-interval').value = n;
+      $$('#f-weekdays input').forEach((c) => { c.checked = wd.includes(Number(c.value)); });
+      if (rule.monthDay) $('#f-monthday').value = rule.monthDay;
+    }
+  }
+
+  function updateRepeatUi() {
+    const v = $('#f-repeat').value;
+    const isTemplateEdit = Boolean(state.editing?.is_template);
+    $('#f-custom').classList.toggle('hidden', v !== 'custom');
+    $('#f-until-wrap').classList.toggle('hidden', !v);
+    $('#f-due-wrap').classList.toggle('hidden', Boolean(v) || isTemplateEdit);
+    $('#f-weekdays').classList.toggle('hidden', $('#f-freq').value !== 'weekly');
+    $('#f-monthday-wrap').classList.toggle('hidden', $('#f-freq').value !== 'monthly');
+    $('#f-start').parentElement.firstChild.textContent = v ? 'Começa em' : 'Entrar na lista em';
+  }
+  $('#f-repeat').addEventListener('change', updateRepeatUi);
+  $('#f-freq').addEventListener('change', updateRepeatUi);
+
+  function ruleFromForm() {
+    const v = $('#f-repeat').value;
+    if (!v) return null;
+    let rule;
+    if (v === 'custom') {
+      rule = { freq: $('#f-freq').value, interval: Math.max(1, parseInt($('#f-interval').value, 10) || 1) };
+      if (rule.freq === 'weekly') {
+        const wd = $$('#f-weekdays input:checked').map((c) => Number(c.value));
+        if (wd.length) rule.weekdays = wd;
+      }
+      if (rule.freq === 'monthly' && $('#f-monthday').value) rule.monthDay = parseInt($('#f-monthday').value, 10);
+    } else {
+      rule = v; // preset
+    }
+    const until = $('#f-until').value;
+    if (until) {
+      if (typeof rule === 'string') rule = { preset: rule };
+      rule.until = until;
+    }
+    return rule;
+  }
+
+  async function saveEditor() {
+    const id = $('#f-id').value;
+    let recurrence = ruleFromForm();
+    if (recurrence && recurrence.preset) {
+      // expande preset para objeto quando houver "until"
+      const presets = {
+        daily: { freq: 'daily', interval: 1 }, weekdays: { freq: 'weekly', interval: 1, weekdays: [1, 2, 3, 4, 5] },
+        weekly: { freq: 'weekly', interval: 1 }, biweekly: { freq: 'weekly', interval: 2 },
+        monthly: { freq: 'monthly', interval: 1 }, yearly: { freq: 'yearly', interval: 1 },
+      };
+      recurrence = { ...presets[recurrence.preset], until: recurrence.until };
+    }
+    const body = {
+      title: $('#f-title').value,
+      notes: $('#f-notes').value,
+      start_date: $('#f-start').value || null,
+      due_date: recurrence ? null : ($('#f-due').value || null),
+      priority: $('#f-priority').checked,
+      recurrence,
+    };
+    if (!body.title.trim()) { toast('Informe um título'); return; }
+    try {
+      if (id) await api('PATCH', `/api/tasks/${id}`, body);
+      else await api('POST', '/api/tasks', body);
+      closeEditor();
+      toast(id ? 'Salvo' : 'Tarefa criada');
+      refresh();
+    } catch (e) { toast(e.message); }
+  }
+
+  async function deleteEditing() {
+    const id = $('#f-id').value;
+    if (!id) return;
+    const t = state.editing;
+    const msg = t?.is_template ? 'Excluir esta recorrência e todas as suas ocorrências?' : 'Excluir esta tarefa?';
+    if (!confirm(msg)) return;
+    try {
+      await api('DELETE', `/api/tasks/${id}`);
+      closeEditor();
+      toast('Excluída');
+      refresh();
+    } catch (e) { toast(e.message); }
+  }
+
+  $('#sheet-cancel').addEventListener('click', closeEditor);
+  $('.sheet-backdrop').addEventListener('click', closeEditor);
+  $('#sheet-save').addEventListener('click', saveEditor);
+  $('#task-form').addEventListener('submit', (e) => { e.preventDefault(); saveEditor(); });
+  $('#f-delete').addEventListener('click', deleteEditing);
+  $('#fab').addEventListener('click', () => openEditor(null));
+
+  // ---------- avisos ----------
+  async function loadNotices() {
+    const list = await api('GET', '/api/notices');
+    const box = $('#notices');
+    box.innerHTML = '';
+    for (const n of list) {
+      const el = document.createElement('div');
+      el.className = 'notice';
+      const span = document.createElement('span');
+      span.textContent = (n.kind === 'offline' ? '⚠️ ' : 'ℹ️ ') + n.message;
+      const btn = document.createElement('button');
+      btn.textContent = 'OK';
+      btn.addEventListener('click', async () => { await api('POST', `/api/notices/${n.id}/dismiss`); el.remove(); });
+      el.append(span, btn);
+      box.appendChild(el);
+    }
+  }
+
+  // ---------- configurações ----------
+  async function loadSettings() {
+    const { settings } = await api('GET', '/api/settings');
+    state.settings = settings;
+    $('#s-marker').value = settings.wa_marker;
+    $('#s-reply').checked = settings.wa_reply_enabled === '1';
+    $('#s-reply-text').value = settings.wa_reply_text;
+    $('#s-own').checked = settings.wa_accept_own === '1';
+    $('#s-senders').value = settings.wa_allowed_senders;
+    $('#s-offline').value = settings.wa_offline_alert_hours;
+  }
+
+  async function loadWa() {
+    const wa = await api('GET', '/api/whatsapp/status');
+    state.wa = wa;
+    const labels = {
+      disabled: 'Desativado (WA_ENABLED=false)', starting: 'Iniciando…', qr: 'Aguardando leitura do QR code',
+      connecting: 'Conectando…', connected: 'Conectado', disconnected: 'Desconectado, tentando reconectar…',
+      logged_out: 'Sessão encerrada. Gere um novo QR code.', error: 'Erro: ' + (wa.lastError || ''),
+    };
+    $('#wa-dot').className = 'dot ' + wa.status;
+    $('#wa-status-text').textContent = labels[wa.status] || wa.status;
+    $('#wa-me').textContent = wa.me ? `Número: ${wa.me.id}${wa.me.name ? ' · ' + wa.me.name : ''}` : '';
+    $('#wa-qr-wrap').classList.toggle('hidden', !(wa.status === 'qr' && wa.qr));
+    if (wa.qr) $('#wa-qr').src = wa.qr;
+    $('#wa-logout').disabled = !['connected', 'connecting', 'disconnected', 'qr'].includes(wa.status);
+    const s = wa.stats || {};
+    $('#wa-stats').textContent = wa.status === 'connected'
+      ? `Nesta sessão: ${s.received || 0} mensagens vistas, ${s.demands || 0} demandas criadas, ${s.duplicates || 0} duplicadas ignoradas.`
+      : (wa.lastError && wa.status !== 'error' ? `Último erro: ${wa.lastError}` : '');
+
+    // grupos
+    const sel = $('#s-group');
+    const cur = state.settings?.wa_group_jid || '';
+    sel.innerHTML = '';
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = wa.groups?.length ? '— escolha o grupo —' : '— conecte o WhatsApp para listar —';
+    sel.appendChild(opt0);
+    let found = false;
+    for (const g of wa.groups || []) {
+      const o = document.createElement('option');
+      o.value = g.jid;
+      o.textContent = `${g.subject} (${g.participants})`;
+      if (g.jid === cur) found = true;
+      sel.appendChild(o);
+    }
+    if (cur && !found) {
+      const o = document.createElement('option');
+      o.value = cur;
+      o.textContent = `${cur} (grupo configurado)`;
+      sel.appendChild(o);
+    }
+    sel.value = cur;
+  }
+
+  $('#s-save').addEventListener('click', async () => {
+    try {
+      const body = {
+        wa_group_jid: $('#s-group').value,
+        wa_marker: $('#s-marker').value.trim() || '#demanda',
+        wa_reply_enabled: $('#s-reply').checked ? '1' : '0',
+        wa_reply_text: $('#s-reply-text').value.trim() || '✅ Anotado: {titulo}',
+        wa_accept_own: $('#s-own').checked ? '1' : '0',
+        wa_allowed_senders: $('#s-senders').value.trim(),
+        wa_offline_alert_hours: String(Math.max(0, parseInt($('#s-offline').value, 10) || 0)),
+      };
+      await api('PUT', '/api/settings', body);
+      $('#s-saved').textContent = 'Salvo ✓';
+      setTimeout(() => { $('#s-saved').textContent = ''; }, 2000);
+      loadSettings();
+    } catch (e) { toast(e.message); }
+  });
+  $('#wa-reconnect').addEventListener('click', async () => {
+    $('#wa-reconnect').disabled = true;
+    try { await api('POST', '/api/whatsapp/reconnect'); toast('Reconectando…'); }
+    catch (e) { toast(e.message); }
+    finally { setTimeout(() => { $('#wa-reconnect').disabled = false; loadWa(); }, 1500); }
+  });
+  $('#wa-logout').addEventListener('click', async () => {
+    if (!confirm('Encerrar a sessão do WhatsApp? Será preciso escanear o QR code novamente.')) return;
+    try { await api('POST', '/api/whatsapp/logout'); toast('Sessão encerrada'); loadWa(); }
+    catch (e) { toast(e.message); }
+  });
+
+  // ---------- eventos globais ----------
+  $$('[data-view]').forEach((el) => el.addEventListener('click', () => show(el.dataset.view)));
+  $('#btn-home').addEventListener('click', () => show('home'));
+  $('#btn-settings').addEventListener('click', () => show('settings'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.classList.contains('hidden')) closeEditor(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+  function startAutoRefresh() {
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+      if (document.hidden || !sheet.classList.contains('hidden')) return;
+      refresh();
+    }, state.view === 'settings' ? 4000 : 30000);
+  }
+  // Service worker (PWA)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  const initial = location.hash.replace('#', '');
+  show(VIEW_TITLES[initial] ? initial : 'home');
+})();
