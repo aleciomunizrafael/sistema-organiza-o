@@ -65,6 +65,7 @@
   // ---------- navegação ----------
   function show(view) {
     state.view = view;
+    if (view === 'settings') state.settingsLoaded = false;
     $('#page-title').textContent = VIEW_TITLES[view] || 'Organiza';
     $('#view-home').classList.toggle('hidden', view !== 'home');
     $('#view-settings').classList.toggle('hidden', view !== 'settings');
@@ -79,7 +80,11 @@
   async function refresh() {
     try {
       await loadNotices();
-      if (state.view === 'settings') { await loadSettings(); await loadWa(); return; }
+      if (state.view === 'settings') {
+        if (!state.settingsLoaded) { await loadSettings(); state.settingsLoaded = true; }
+        await loadWa();
+        return;
+      }
       const view = state.view === 'home' ? 'today' : state.view;
       const data = await api('GET', `/api/tasks?view=${view}`);
       state.today = data.today;
@@ -462,30 +467,37 @@
       ? `Nesta sessão: ${s.received || 0} mensagens vistas, ${s.demands || 0} demandas criadas, ${s.duplicates || 0} duplicadas ignoradas.`
       : (wa.lastError && wa.status !== 'error' ? `Último erro: ${wa.lastError}` : '');
 
-    // grupos
+    // grupos: preserva o que o usuário escolheu (ainda não salvo) ao atualizar a lista
     const sel = $('#s-group');
-    const cur = state.settings?.wa_group_jid || '';
-    sel.innerHTML = '';
-    const opt0 = document.createElement('option');
-    opt0.value = '';
-    opt0.textContent = wa.groups?.length ? '— escolha o grupo —' : '— conecte o WhatsApp para listar —';
-    sel.appendChild(opt0);
-    let found = false;
-    for (const g of wa.groups || []) {
-      const o = document.createElement('option');
-      o.value = g.jid;
-      o.textContent = `${g.subject} (${g.participants})`;
-      if (g.jid === cur) found = true;
-      sel.appendChild(o);
+    const saved = state.settings?.wa_group_jid || '';
+    const chosen = sel.dataset.touched === '1' ? sel.value : saved;
+    const groups = wa.groups || [];
+    const signature = groups.map((g) => g.jid + g.subject + g.participants).join('|') + '#' + saved;
+    if (sel.dataset.signature !== signature) {
+      sel.dataset.signature = signature;
+      sel.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = groups.length ? '— escolha o grupo —' : '— conecte o WhatsApp para listar —';
+      sel.appendChild(opt0);
+      for (const g of groups) {
+        const o = document.createElement('option');
+        o.value = g.jid;
+        o.textContent = `${g.subject} (${g.participants})`;
+        sel.appendChild(o);
+      }
+      for (const jid of new Set([saved, chosen])) {
+        if (jid && !groups.some((g) => g.jid === jid)) {
+          const o = document.createElement('option');
+          o.value = jid;
+          o.textContent = `${jid} (grupo configurado)`;
+          sel.appendChild(o);
+        }
+      }
+      sel.value = chosen;
     }
-    if (cur && !found) {
-      const o = document.createElement('option');
-      o.value = cur;
-      o.textContent = `${cur} (grupo configurado)`;
-      sel.appendChild(o);
-    }
-    sel.value = cur;
   }
+  $('#s-group').addEventListener('change', () => { $('#s-group').dataset.touched = '1'; });
 
   $('#s-save').addEventListener('click', async () => {
     try {
@@ -498,10 +510,18 @@
         wa_allowed_senders: $('#s-senders').value.trim(),
         wa_offline_alert_hours: String(Math.max(0, parseInt($('#s-offline').value, 10) || 0)),
       };
-      await api('PUT', '/api/settings', body);
+      if (!body.wa_group_jid && state.wa?.groups?.length) {
+        toast('Escolha o grupo monitorado antes de salvar');
+        return;
+      }
+      const { settings } = await api('PUT', '/api/settings', body);
+      state.settings = settings;
+      $('#s-group').dataset.touched = '';
       $('#s-saved').textContent = 'Salvo ✓';
-      setTimeout(() => { $('#s-saved').textContent = ''; }, 2000);
-      loadSettings();
+      setTimeout(() => { $('#s-saved').textContent = ''; }, 2500);
+      toast(settings.wa_group_jid ? 'Configurações salvas. Grupo monitorado definido.' : 'Configurações salvas');
+      await loadSettings();
+      await loadWa();
     } catch (e) { toast(e.message); }
   });
   $('#wa-reconnect').addEventListener('click', async () => {

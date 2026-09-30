@@ -58,7 +58,13 @@ export function apiRouter() {
 
   // ---------- configurações ----------
   r.get('/settings', (_req, res) => res.json({ settings: getSettings(), defaults: DEFAULT_SETTINGS }));
-  r.put('/settings', (req, res) => res.json({ settings: setSettings(req.body || {}) }));
+  r.put('/settings', (req, res) => {
+    const settings = setSettings(req.body || {});
+    const grupo = wa.listGroups().find((g) => g.jid === settings.wa_group_jid);
+    console.log(JSON.stringify({ level: 30, time: Date.now(), mod: 'settings', msg: 'configurações salvas',
+      grupo: settings.wa_group_jid ? `${grupo ? grupo.subject + ' ' : ''}${settings.wa_group_jid}` : '(nenhum)', marcador: settings.wa_marker }));
+    res.json({ settings });
+  });
 
   // ---------- avisos ----------
   r.get('/notices', (_req, res) => res.json(listNotices()));
