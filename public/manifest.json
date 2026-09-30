@@ -8,6 +8,10 @@
   "background_color": "#f2f2f7",
   "theme_color": "#007aff",
   "lang": "pt-BR",
+  "shortcuts": [
+    { "name": "Nova tarefa", "url": "/#new", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Bloco da semana", "url": "/#week", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ],
   "icons": [
     { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

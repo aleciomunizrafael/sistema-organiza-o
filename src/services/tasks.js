@@ -8,6 +8,7 @@ function row(r) {
   return {
     ...r,
     priority: Number(r.priority),
+    someday: Boolean(r.someday),
     is_template: Boolean(r.is_template),
     recurrence: rule,
     recurrence_label: rule ? describeRule(rule) : '',
@@ -34,9 +35,11 @@ export function createTask(input) {
   if (!title) throw new Error('Título obrigatório');
   const notes = String(input.notes || '').trim();
   const priority = input.priority ? 1 : 0;
-  const rule = normalizeRule(input.recurrence);
-  let startDate = cleanDate(input.start_date);
-  let dueDate = cleanDate(input.due_date);
+  const someday = input.someday ? 1 : 0;
+  const trigger = String(input.trigger_text || '').trim() || null;
+  const rule = someday ? null : normalizeRule(input.recurrence);
+  let startDate = someday ? null : cleanDate(input.start_date);
+  let dueDate = someday ? null : cleanDate(input.due_date);
   const source = input.source || 'manual';
 
   if (rule) {
@@ -54,10 +57,10 @@ export function createTask(input) {
   }
 
   const r = db.prepare(`
-    INSERT INTO tasks (title, notes, start_date, due_date, priority, source, source_sender, source_text,
+    INSERT INTO tasks (title, notes, start_date, due_date, priority, someday, trigger_text, source, source_sender, source_text,
                        source_message_id, source_timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title, notes, startDate, dueDate, priority, source, input.source_sender ?? null, input.source_text ?? null,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, notes, startDate, dueDate, priority, someday, trigger, source, input.source_sender ?? null, input.source_text ?? null,
     input.source_message_id ?? null, input.source_timestamp ?? null);
   return getTask(Number(r.lastInsertRowid));
 }
@@ -78,14 +81,31 @@ export function updateTask(id, input) {
   }
   if (input.notes !== undefined) set('notes', String(input.notes || '').trim());
   if (input.priority !== undefined) set('priority', input.priority ? 1 : 0);
-  if (input.start_date !== undefined) set('start_date', cleanDate(input.start_date));
-  if (input.due_date !== undefined && !current.is_template) set('due_date', cleanDate(input.due_date));
+  if (input.trigger_text !== undefined) set('trigger_text', String(input.trigger_text || '').trim() || null);
+
+  // "Sem data" (algum dia): sem datas nem recorrência. Ganhar uma data devolve a tarefa para "A fazer".
+  let someday = current.someday;
+  if (input.someday !== undefined && !current.is_template && !current.template_id) {
+    someday = Boolean(input.someday);
+    set('someday', someday ? 1 : 0);
+  }
+  if (someday) {
+    if (current.start_date || current.due_date) { set('start_date', null); set('due_date', null); }
+    if (input.someday === undefined && (cleanDate(input.start_date) || cleanDate(input.due_date))) {
+      someday = false;
+      set('someday', 0);
+    }
+  }
+  if (!someday) {
+    if (input.start_date !== undefined) set('start_date', cleanDate(input.start_date));
+    if (input.due_date !== undefined && !current.is_template) set('due_date', cleanDate(input.due_date));
+  }
 
   if (input.completed !== undefined) {
     set('completed_at', input.completed ? nowIso() : null);
   }
 
-  if (input.recurrence !== undefined) {
+  if (input.recurrence !== undefined && !someday) {
     const rule = normalizeRule(input.recurrence);
     if (current.is_template) {
       if (rule) set('recurrence', JSON.stringify(rule));
@@ -190,13 +210,16 @@ export function listTasks(view, today = todayYmd()) {
   const db = getDb();
   switch (view) {
     case 'today':
-      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL
+      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0
         AND (start_date IS NULL OR start_date <= ?) ${ORDER_OPEN}`).all(today, today).map(row);
     case 'scheduled':
-      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL
+      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0
         AND start_date > ? ORDER BY start_date, priority DESC, created_at`).all(today).map(row);
     case 'all':
-      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL ${ORDER_OPEN}`).all(today).map(row);
+      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0 ${ORDER_OPEN}`).all(today).map(row);
+    case 'someday':
+      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 1
+        ORDER BY priority DESC, created_at`).all().map(row);
     case 'completed':
       return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NOT NULL
         ORDER BY completed_at DESC LIMIT 300`).all().map(row);
@@ -212,10 +235,11 @@ export function counts(today = todayYmd()) {
   const db = getDb();
   const one = (sql, ...p) => Number(db.prepare(sql).get(...p).n);
   return {
-    today: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND (start_date IS NULL OR start_date <= ?)', today),
+    today: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0 AND (start_date IS NULL OR start_date <= ?)', today),
     overdue: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date < ?', today),
-    scheduled: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND start_date > ?', today),
-    all: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL'),
+    scheduled: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0 AND start_date > ?', today),
+    all: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0'),
+    someday: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 1'),
     completed: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NOT NULL'),
     templates: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 1 AND completed_at IS NULL'),
   };
@@ -229,7 +253,8 @@ export function counts(today = todayYmd()) {
  * Regras de posicionamento:
  * - Tarefa com prazo: no dia do prazo (aberta ou concluída, riscada).
  * - Tarefa agendada (start_date futura, sem prazo): no dia em que entra na lista.
- * - Tarefa sem prazo já na lista: em "Sem data". Se concluída nesta semana, no dia da conclusão.
+ * - Tarefa sem prazo já na lista: em "A fazer" (undated). Se concluída nesta semana, no dia da conclusão.
+ * - Tarefa "Sem data" (someday): lista à parte, sem datas; concluída nesta semana, no dia da conclusão.
  * - Recorrência sem ocorrência criada ainda: prevista (virtual) nos dias >= hoje.
  */
 export function weekView(start, today = todayYmd()) {
@@ -280,16 +305,23 @@ export function weekView(start, today = todayYmd()) {
     || String(a.title).localeCompare(String(b.title), 'pt-BR');
   for (const day of days) day.tasks.sort(sortItems);
 
+  // "A fazer": abertas, sem prazo, já na lista
   const undated = db.prepare(`
-    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date IS NULL
+    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date IS NULL AND someday = 0
       AND (start_date IS NULL OR start_date <= ?)
     ORDER BY priority DESC, created_at
   `).all(today).map(row);
+
+  // "Sem data": algum dia, quando a condição acontecer
+  const someday = db.prepare(`
+    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 1
+    ORDER BY priority DESC, created_at
+  `).all().map(row);
 
   const overdue = db.prepare(`
     SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date < ? AND due_date < ?
     ORDER BY due_date, priority DESC
   `).all(start, today).map(row);
 
-  return { start, end, today, days, undated, overdue };
+  return { start, end, today, days, undated, someday, overdue };
 }

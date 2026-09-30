@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   start_date TEXT,
   due_date TEXT,
   priority INTEGER NOT NULL DEFAULT 0,
+  someday INTEGER NOT NULL DEFAULT 0,
+  trigger_text TEXT,
   completed_at TEXT,
   source TEXT NOT NULL DEFAULT 'manual',
   source_sender TEXT,
@@ -57,12 +59,26 @@ CREATE TABLE IF NOT EXISTS notices (
 );
 `;
 
+/** Colunas adicionadas depois da primeira versão (bancos antigos recebem via ALTER TABLE). */
+const TASK_COLUMNS = [
+  ['someday', 'INTEGER NOT NULL DEFAULT 0'],
+  ['trigger_text', 'TEXT'],
+];
+
+function migrate(d) {
+  const cols = new Set(d.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name));
+  for (const [name, type] of TASK_COLUMNS) {
+    if (!cols.has(name)) d.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
+  }
+}
+
 export function getDb() {
   if (!db) {
     db = new DatabaseSync(config.dbPath);
     db.exec('PRAGMA journal_mode = WAL;');
     db.exec('PRAGMA foreign_keys = ON;');
     db.exec(SCHEMA);
+    migrate(db);
   }
   return db;
 }
@@ -72,6 +88,7 @@ export function useMemoryDb() {
   db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 

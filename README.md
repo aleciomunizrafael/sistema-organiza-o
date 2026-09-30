@@ -3,6 +3,7 @@
 Sistema pessoal de tarefas e demandas, no estilo do app Lembretes do iPhone, com captura automática de demandas enviadas em um grupo do WhatsApp.
 
 - Tarefas ficam na lista até serem concluídas.
+- Duas listas sem prazo: **A fazer** (o que está na sua mesa agora) e **Sem data** (o que fica guardado para quando uma condição acontecer, como "comprar papel de outro fornecedor, quando o papel acabar").
 - Tarefas agendadas só entram na lista na data escolhida.
 - Tarefas recorrentes (diárias, dias úteis, semanais, quinzenais, mensais, anuais ou personalizadas).
 - **Bloco da semana**: uma tela só, com cara de bloco de papel, mostrando a semana dia a dia (prazos, agendadas e recorrências previstas) e, embaixo, as tarefas sem data, que aparecem sempre.
@@ -116,9 +117,9 @@ A interface usa uma API REST simples que você pode chamar de outros lugares (at
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/tasks?view=today\|scheduled\|all\|completed\|templates` | Lista tarefas e contadores |
+| GET | `/api/tasks?view=today\|scheduled\|all\|completed\|templates\|someday` | Lista tarefas e contadores |
 | GET | `/api/week?start=YYYY-MM-DD` | Visão semanal (dias, previstas, sem data, atrasadas); `start` é qualquer dia da semana desejada |
-| POST | `/api/tasks` | Cria. Aceita `{ "text": "Ligar para João amanhã" }` (interpreta a data) ou os campos completos `title, notes, start_date, due_date, priority, recurrence` |
+| POST | `/api/tasks` | Cria. Aceita `{ "text": "Ligar para João amanhã" }` (interpreta a data) ou os campos completos `title, notes, start_date, due_date, priority, recurrence, someday, trigger_text` |
 | PATCH | `/api/tasks/:id` | Edita; `{ "completed": true }` conclui |
 | DELETE | `/api/tasks/:id` | Exclui |
 | POST | `/api/parse` | Pré-visualiza como um texto seria interpretado |
@@ -132,10 +133,13 @@ Formato da recorrência: `"daily"`, `"weekdays"`, `"weekly"`, `"biweekly"`, `"mo
 
 Na tela inicial, toque em **Bloco da semana**. A tela usa a largura inteira e tem duas folhas:
 
-- **Folha principal, "Sem data"**: todas as tarefas abertas que não têm prazo, que são a maioria das demandas. Elas aparecem em qualquer semana. No fim da folha há uma linha para anotar uma nova demanda direto ali (digite e pressione Enter; datas escritas no texto são interpretadas).
+- **Folha principal, "A fazer"**: todas as tarefas abertas que não têm prazo, que são a maioria das demandas. Elas aparecem em qualquer semana. No fim da folha há uma linha para anotar uma nova demanda direto ali (digite e pressione Enter; datas escritas no texto são interpretadas).
+- **Folha "Sem data"**, logo abaixo, menor e amarelada: tarefas guardadas para algum dia, sem prazo e sem pressa, cada uma com a condição em que deve ser feita ("quando o papel acabar"). A linha de escrita dessa folha entende o "quando": digitar `Comprar papel de outro fornecedor quando o papel acabar` separa o título da condição. Essas tarefas não aparecem em Hoje nem em Todas; ficam só aqui e na lista "Sem data" da tela inicial.
 - **Folha da semana**, ao lado (ou abaixo, no celular): **Atrasadas** no topo, quando houver prazo vencido de semanas anteriores, e depois **segunda a domingo**, cada dia com as tarefas cujo prazo cai naquele dia, as agendadas para entrar naquele dia e as recorrências. Ocorrências futuras de recorrências aparecem em tom mais claro, como previsão, e entram na lista de verdade quando o dia chega. Tarefas concluídas ficam riscadas no dia.
 
 As setas trocam de semana e o botão "Hoje" volta para a atual. O "+" ao lado de cada dia cria uma tarefa já com aquele prazo. Marcar o círculo conclui a tarefa na hora.
+
+No editor de tarefa, o seletor **A fazer / Sem data** troca uma tarefa de lista. Em "Sem data" os campos de data e repetição somem e aparece o campo "Quando fazer". Dar um prazo a uma tarefa "Sem data" a traz de volta para "A fazer".
 
 ## Como a recorrência funciona
 

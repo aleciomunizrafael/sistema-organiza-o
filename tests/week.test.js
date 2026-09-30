@@ -116,3 +116,12 @@ test('ordenação no dia: abertas antes das concluídas, prioridade alta primeir
   assert.deepEqual(titles(day(w, '2026-10-01').tasks), ['A alta', 'B normal', 'C feita']);
   assert.ok(a.id);
 });
+
+test('"sem data" (someday) fica na lista própria, fora de "A fazer" e dos dias', () => {
+  createTask({ title: 'A fazer', });
+  createTask({ title: 'Algum dia', someday: true, trigger_text: 'quando o papel acabar' });
+  const w = weekView(START, TODAY);
+  assert.deepEqual(titles(w.undated), ['A fazer']);
+  assert.deepEqual(titles(w.someday), ['Algum dia']);
+  assert.equal(w.days.every((d) => !titles(d.tasks).includes('Algum dia')), true);
+});

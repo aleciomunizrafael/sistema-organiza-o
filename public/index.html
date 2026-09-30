@@ -55,6 +55,10 @@
             <span class="row-icon week">📝</span><span class="row-text">Bloco da semana</span>
             <span class="chev">›</span>
           </button>
+          <button class="row-link" data-view="someday">
+            <span class="row-icon someday">💤</span><span class="row-text">Sem data</span>
+            <span class="row-count" id="count-someday">0</span><span class="chev">›</span>
+          </button>
           <button class="row-link" data-view="templates">
             <span class="row-icon">🔁</span><span class="row-text">Recorrentes</span>
             <span class="row-count" id="count-templates">0</span><span class="chev">›</span>
@@ -77,9 +81,15 @@
       <!-- Bloco da semana -->
       <section id="view-week" class="view hidden">
         <div class="week-layout">
-          <div class="paper paper-main">
-            <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            <div class="paper-body" id="undated-body"></div>
+          <div class="week-main">
+            <div class="paper paper-main">
+              <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="paper-body" id="undated-body"></div>
+            </div>
+            <div class="paper paper-someday">
+              <div class="paper-holes"><i></i><i></i><i></i></div>
+              <div class="paper-body" id="someday-body"></div>
+            </div>
           </div>
           <div class="week-side">
             <div class="week-nav">
@@ -164,7 +174,14 @@
         <input type="hidden" id="f-id">
         <input id="f-title" type="text" placeholder="Título" required>
         <textarea id="f-notes" rows="3" placeholder="Observações"></textarea>
-        <div class="two">
+        <div class="seg" id="f-mode" role="radiogroup" aria-label="Quando fazer">
+          <button type="button" data-mode="todo" class="active">A fazer</button>
+          <button type="button" data-mode="someday">Sem data</button>
+        </div>
+        <label id="f-trigger-wrap" class="hidden">Quando fazer (condição, não uma data)
+          <input id="f-trigger" type="text" placeholder="ex.: quando o papel acabar">
+        </label>
+        <div class="two" id="f-dates">
           <label>Entrar na lista em
             <input id="f-start" type="date">
           </label>
@@ -173,7 +190,7 @@
           </label>
         </div>
         <label class="check"><input id="f-priority" type="checkbox"> Prioridade alta</label>
-        <label>Repetir
+        <label id="f-repeat-wrap">Repetir
           <select id="f-repeat">
             <option value="">Nunca</option>
             <option value="daily">Todos os dias</option>

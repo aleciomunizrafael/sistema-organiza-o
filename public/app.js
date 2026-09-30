@@ -5,7 +5,7 @@
 
   const VIEW_TITLES = {
     home: 'Organiza', today: 'Hoje', scheduled: 'Agendadas', all: 'Todas',
-    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações', week: 'Bloco da semana',
+    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações', week: 'Bloco da semana', someday: 'Sem data',
   };
   const WEEKDAYS_LONG = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -73,7 +73,7 @@
     $('#view-settings').classList.toggle('hidden', view !== 'settings');
     $('#view-week').classList.toggle('hidden', view !== 'week');
     document.body.classList.toggle('wide', view === 'week');
-    $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates'].includes(view));
+    $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates', 'someday'].includes(view));
     $('#btn-home').style.visibility = view === 'home' ? 'hidden' : 'visible';
     $('#fab').classList.toggle('hidden', view === 'settings');
     history.replaceState(null, '', view === 'home' ? '#' : `#${view}`);
@@ -119,6 +119,7 @@
     $('#count-all').textContent = c.all ?? 0;
     $('#count-completed').textContent = c.completed ?? 0;
     $('#count-templates').textContent = c.templates ?? 0;
+    $('#count-someday').textContent = c.someday ?? 0;
   }
 
   // ---------- lista ----------
@@ -133,6 +134,7 @@
       empty.textContent = {
         today: 'Nada para hoje. 🎉', scheduled: 'Nenhuma tarefa agendada.', all: 'Nenhuma tarefa pendente.',
         completed: 'Nenhuma tarefa concluída ainda.', templates: 'Nenhuma tarefa recorrente.',
+        someday: 'Nada guardado para "algum dia".',
       }[state.view] || 'Nada aqui.';
       empty.classList.remove('hidden');
       return;
@@ -209,6 +211,7 @@
       }
       if (t.start_date && t.start_date > state.today) add('entra ' + fmtDate(t.start_date));
       if (t.template_id) add('🔁 recorrente');
+      if (t.someday) add('💤 ' + (t.trigger_text ? 'quando ' + t.trigger_text.replace(/^quando\s+/i, '') : 'sem data'));
       if (t.completed_at) add('concluída ' + fmtDateTime(t.completed_at));
     }
     if (t.source === 'whatsapp') add('WhatsApp' + (t.source_sender ? ' · ' + t.source_sender.replace(/\s*\(\d+\)$/, '') : ''), 'wa');
@@ -290,7 +293,11 @@
     $('#f-start').value = task?.start_date || preset.start_date || '';
     $('#f-due').value = task?.due_date || preset.due_date || '';
     $('#f-priority').checked = Boolean(task?.priority);
+    $('#f-trigger').value = task?.trigger_text || preset.trigger_text || '';
     $('#f-delete').classList.toggle('hidden', !task);
+    setMode(task ? (task.someday ? 'someday' : 'todo') : (preset.someday ? 'someday' : 'todo'));
+    // modo só faz sentido para tarefas comuns (não recorrentes)
+    $('#f-mode').classList.toggle('hidden', Boolean(task?.is_template || task?.template_id));
 
     // recorrência
     const rule = task?.recurrence || null;
@@ -347,7 +354,22 @@
     }
   }
 
+  function currentMode() {
+    return $('#f-mode button.active')?.dataset.mode || 'todo';
+  }
+  function setMode(mode) {
+    $$('#f-mode button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    const someday = mode === 'someday';
+    $('#f-trigger-wrap').classList.toggle('hidden', !someday);
+    $('#f-dates').classList.toggle('hidden', someday);
+    $('#f-repeat-wrap').classList.toggle('hidden', someday);
+    if (someday) { $('#f-custom').classList.add('hidden'); $('#f-until-wrap').classList.add('hidden'); }
+    else updateRepeatUi();
+  }
+  $$('#f-mode button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
   function updateRepeatUi() {
+    if (currentMode() === 'someday') return;
     const v = $('#f-repeat').value;
     const isTemplateEdit = Boolean(state.editing?.is_template);
     $('#f-custom').classList.toggle('hidden', v !== 'custom');
@@ -394,13 +416,25 @@
       };
       recurrence = { ...presets[recurrence.preset], until: recurrence.until };
     }
-    const body = {
+    const someday = currentMode() === 'someday' && !state.editing?.is_template && !state.editing?.template_id;
+    const body = someday ? {
+      title: $('#f-title').value,
+      notes: $('#f-notes').value,
+      priority: $('#f-priority').checked,
+      someday: true,
+      trigger_text: $('#f-trigger').value,
+      start_date: null,
+      due_date: null,
+      recurrence: null,
+    } : {
       title: $('#f-title').value,
       notes: $('#f-notes').value,
       start_date: $('#f-start').value || null,
       due_date: recurrence ? null : ($('#f-due').value || null),
       priority: $('#f-priority').checked,
       recurrence,
+      someday: false,
+      trigger_text: '',
     };
     if (!body.title.trim()) { toast('Informe um título'); return; }
     try {
@@ -451,8 +485,10 @@
     if (!w) return;
     const body = $('#week-body');
     const main = $('#undated-body');
+    const some = $('#someday-body');
     body.innerHTML = '';
     main.innerHTML = '';
+    some.innerHTML = '';
 
     const [sy] = w.start.split('-');
     const [ey] = w.end.split('-');
@@ -474,15 +510,29 @@
       parent.appendChild(e);
     };
 
-    // ----- folha principal: sem data -----
-    const h = section(main, 'Sem data', 'undated');
+    // ----- folha principal: a fazer -----
+    const h = section(main, 'A fazer', 'undated');
     const count = document.createElement('span');
     count.className = 'paper-count';
     count.textContent = w.undated.length;
     h.appendChild(count);
     if (!w.undated.length) emptyLine(main, 'nada pendente');
     for (const t of w.undated) main.appendChild(renderPaperItem(t));
-    main.appendChild(renderAddLine());
+    main.appendChild(renderAddLine({ placeholder: 'Nova demanda… (Enter para anotar)' }));
+
+    // ----- folha secundária: sem data (algum dia) -----
+    const hs = section(some, 'Sem data', 'someday');
+    const cs = document.createElement('span');
+    cs.className = 'paper-count';
+    cs.textContent = (w.someday || []).length;
+    hs.appendChild(cs);
+    const hint = document.createElement('span');
+    hint.className = 'paper-hint';
+    hint.textContent = 'sem prazo e sem pressa';
+    hs.appendChild(hint);
+    if (!(w.someday || []).length) emptyLine(some, 'nada guardado');
+    for (const t of w.someday || []) some.appendChild(renderPaperItem(t));
+    some.appendChild(renderAddLine({ someday: true, placeholder: 'Guardar para depois… ex.: Comprar papel de outro fornecedor quando o papel acabar' }));
 
     // ----- folha da semana -----
     if (w.overdue.length) {
@@ -513,15 +563,16 @@
     }
   }
 
-  // Linha de escrita no fim da folha principal: digitar + Enter cria a demanda
-  function renderAddLine() {
+  // Linha de escrita no fim de cada folha: digitar + Enter cria a demanda.
+  // Na folha "Sem data", um "quando ..." no texto vira a condição: "Comprar papel quando o papel acabar".
+  function renderAddLine(opts = {}) {
     const li = document.createElement('div');
     li.className = 'paper-item paper-add-line';
     const tick = document.createElement('span');
     tick.className = 'tick ghost';
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'Nova demanda… (Enter para anotar)';
+    input.placeholder = opts.placeholder || 'Nova demanda…';
     input.autocomplete = 'off';
     input.addEventListener('keydown', async (e) => {
       if (e.key !== 'Enter') return;
@@ -529,12 +580,20 @@
       if (!text) return;
       input.disabled = true;
       try {
-        const t = await api('POST', '/api/tasks', { text });
-        const extra = t.due_date ? ` (prazo ${fmtDate(t.due_date)})` : t.recurrence_label ? ` (${t.recurrence_label.toLowerCase()})` : '';
-        toast(`Anotado: ${t.title}${extra}`);
+        let t;
+        if (opts.someday) {
+          const m = text.match(/^(.*?)[\s,;:–—-]+quando\s+(.+)$/i);
+          const body = m ? { title: m[1].trim(), trigger_text: 'quando ' + m[2].trim() } : { title: text };
+          t = await api('POST', '/api/tasks', { ...body, someday: true });
+          toast(`Guardado: ${t.title}${t.trigger_text ? ` (${t.trigger_text})` : ''}`);
+        } else {
+          t = await api('POST', '/api/tasks', { text });
+          const extra = t.due_date ? ` (prazo ${fmtDate(t.due_date)})` : t.recurrence_label ? ` (${t.recurrence_label.toLowerCase()})` : '';
+          toast(`Anotado: ${t.title}${extra}`);
+        }
         input.value = '';
         await refresh();
-        $('#undated-body input')?.focus();
+        $(opts.someday ? '#someday-body input' : '#undated-body input')?.focus();
       } catch (err) {
         toast(err.message);
         input.disabled = false;
@@ -575,6 +634,8 @@
     if (opts.showDate && t.due_date) meta.push('⏰ ' + fmtDate(t.due_date));
     if (t.kind === 'scheduled') meta.push('entra na lista');
     if (t.kind === 'projected' || t.template_id) meta.push('🔁' + (t.recurrence_label ? ' ' + t.recurrence_label.toLowerCase() : ''));
+    if (t.someday && t.trigger_text) meta.push(t.trigger_text);
+    else if (t.someday && t.kind === 'done') meta.push('💤 sem data');
     if (t.source === 'whatsapp') meta.push('WhatsApp');
     if (t.notes) meta.push(t.notes.length > 60 ? t.notes.slice(0, 60) + '…' : t.notes);
     if (meta.length) {
@@ -738,5 +799,10 @@
   }
 
   const initial = location.hash.replace('#', '');
-  show(VIEW_TITLES[initial] ? initial : 'home');
+  if (initial === 'new' || initial === 'new-someday') {
+    show('home');
+    openEditor(null, initial === 'new-someday' ? { someday: true } : {});
+  } else {
+    show(VIEW_TITLES[initial] ? initial : 'home');
+  }
 })();

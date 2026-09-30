@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { useMemoryDb } from '../src/db/database.js';
 import { today as todayYmd, addDays } from '../src/services/dates.js';
-import { createTask, updateTask, listTasks, ensureOccurrence, materializeAll, counts, deleteTask } from '../src/services/tasks.js';
+import { createTask, updateTask, listTasks, ensureOccurrence, materializeAll, counts, deleteTask, getTask } from '../src/services/tasks.js';
 
 beforeEach(() => useMemoryDb());
 
@@ -105,4 +105,37 @@ test('contadores', () => {
 test('validação de datas', () => {
   assert.throws(() => createTask({ title: 'X', due_date: '2026-13-45' }), /Data inválida/);
   assert.throws(() => createTask({ title: '   ' }), /Título/);
+});
+
+test('"sem data" (someday): fora de Hoje/Todas, sem datas, com condição em texto', () => {
+  const t = createTask({ title: 'Comprar papel de outro fornecedor', someday: true, trigger_text: 'quando o papel acabar', due_date: '2026-10-05' });
+  assert.equal(t.someday, true);
+  assert.equal(t.due_date, null); // datas são ignoradas em "sem data"
+  assert.equal(t.trigger_text, 'quando o papel acabar');
+  assert.equal(listTasks('today').length, 0);
+  assert.equal(listTasks('all').length, 0);
+  assert.deepEqual(listTasks('someday').map((x) => x.title), ['Comprar papel de outro fornecedor']);
+  assert.equal(counts().someday, 1);
+});
+
+test('"sem data" volta para "a fazer" ao ganhar uma data ou ao trocar o modo', () => {
+  const t = createTask({ title: 'Guardada', someday: true });
+  updateTask(t.id, { due_date: '2026-12-01' });
+  assert.equal(getTask(t.id).someday, false);
+  assert.equal(getTask(t.id).due_date, '2026-12-01');
+  updateTask(t.id, { someday: true });
+  assert.equal(getTask(t.id).someday, true);
+  assert.equal(getTask(t.id).due_date, null);
+  updateTask(t.id, { someday: false });
+  assert.equal(getTask(t.id).someday, false);
+  assert.equal(listTasks('today').length, 1);
+});
+
+test('recorrência ignora o modo "sem data"', () => {
+  const t = createTask({ title: 'Diária', recurrence: 'daily', someday: true });
+  assert.equal(t.is_template, false);
+  assert.equal(t.someday, true);
+  const tpl = createTask({ title: 'Semanal', recurrence: 'weekly' });
+  updateTask(tpl.id, { someday: true });
+  assert.equal(getTask(tpl.id).someday, false);
 });
