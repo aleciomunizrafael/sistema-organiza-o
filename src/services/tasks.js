@@ -1,6 +1,6 @@
 import { getDb, nowIso } from '../db/database.js';
 import { today as todayYmd, isValidYmd, addDays } from './dates.js';
-import { normalizeRule, nextOccurrence, lastOccurrenceUpTo, describeRule } from './recurrence.js';
+import { normalizeRule, nextOccurrence, lastOccurrenceUpTo, describeRule, matches } from './recurrence.js';
 
 function row(r) {
   if (!r) return null;
@@ -219,4 +219,77 @@ export function counts(today = todayYmd()) {
     completed: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NOT NULL'),
     templates: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 1 AND completed_at IS NULL'),
   };
+}
+
+/**
+ * Visão semanal ("bloco de papel"): sete dias com as tarefas datadas e as
+ * recorrências previstas, mais as tarefas sem data (sempre visíveis) e as
+ * atrasadas de semanas anteriores.
+ *
+ * Regras de posicionamento:
+ * - Tarefa com prazo: no dia do prazo (aberta ou concluída, riscada).
+ * - Tarefa agendada (start_date futura, sem prazo): no dia em que entra na lista.
+ * - Tarefa sem prazo já na lista: em "Sem data". Se concluída nesta semana, no dia da conclusão.
+ * - Recorrência sem ocorrência criada ainda: prevista (virtual) nos dias >= hoje.
+ */
+export function weekView(start, today = todayYmd()) {
+  const db = getDb();
+  const end = addDays(start, 6);
+
+  const rows = db.prepare(`
+    SELECT * FROM tasks WHERE is_template = 0 AND (
+      (due_date BETWEEN ? AND ?)
+      OR (due_date IS NULL AND start_date BETWEEN ? AND ? AND start_date > ? AND completed_at IS NULL)
+      OR (due_date IS NULL AND completed_at IS NOT NULL AND substr(completed_at, 1, 10) BETWEEN ? AND ?)
+    )
+  `).all(start, end, start, end, today, start, end).map(row);
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(start, i);
+    const tasks = rows.filter((t) => {
+      if (t.due_date) return t.due_date === date;
+      if (t.completed_at) return t.completed_at.slice(0, 10) === date;
+      return t.start_date === date;
+    }).map((t) => ({ ...t, kind: t.due_date ? 'due' : t.completed_at ? 'done' : 'scheduled' }));
+    days.push({ date, tasks });
+  }
+
+  // Recorrências previstas (ainda sem ocorrência materializada), só de hoje em diante
+  const templates = db.prepare('SELECT * FROM tasks WHERE is_template = 1 AND completed_at IS NULL').all().map(row);
+  const existing = new Set(
+    db.prepare('SELECT template_id, occurrence_date FROM tasks WHERE template_id IS NOT NULL AND occurrence_date BETWEEN ? AND ?')
+      .all(start, end).map((r) => `${r.template_id}|${r.occurrence_date}`),
+  );
+  for (const tpl of templates) {
+    if (!tpl.recurrence) continue;
+    const anchor = tpl.start_date || today;
+    for (const day of days) {
+      if (day.date < today || day.date < anchor) continue;
+      if (existing.has(`${tpl.id}|${day.date}`)) continue;
+      if (!matches(tpl.recurrence, anchor, day.date)) continue;
+      day.tasks.push({
+        id: null, virtual: true, kind: 'projected', template_id: tpl.id, title: tpl.title, notes: tpl.notes,
+        priority: tpl.priority, due_date: day.date, completed_at: null, source: tpl.source,
+        recurrence_label: tpl.recurrence_label,
+      });
+    }
+  }
+
+  const sortItems = (a, b) => (Boolean(a.completed_at) - Boolean(b.completed_at)) || (b.priority - a.priority)
+    || String(a.title).localeCompare(String(b.title), 'pt-BR');
+  for (const day of days) day.tasks.sort(sortItems);
+
+  const undated = db.prepare(`
+    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date IS NULL
+      AND (start_date IS NULL OR start_date <= ?)
+    ORDER BY priority DESC, created_at
+  `).all(today).map(row);
+
+  const overdue = db.prepare(`
+    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date < ? AND due_date < ?
+    ORDER BY due_date, priority DESC
+  `).all(start, today).map(row);
+
+  return { start, end, today, days, undated, overdue };
 }

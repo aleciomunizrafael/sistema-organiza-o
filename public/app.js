@@ -5,11 +5,13 @@
 
   const VIEW_TITLES = {
     home: 'Organiza', today: 'Hoje', scheduled: 'Agendadas', all: 'Todas',
-    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações',
+    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações', week: 'Bloco da semana',
   };
+  const WEEKDAYS_LONG = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const WEEKDAYS_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
-  const state = { view: 'home', today: null, counts: {}, tasks: [], settings: null, wa: null, editing: null };
+  const state = { view: 'home', today: null, counts: {}, tasks: [], settings: null, wa: null, editing: null, weekStart: null, week: null };
   let refreshTimer = null;
 
   // ---------- API ----------
@@ -69,6 +71,7 @@
     $('#page-title').textContent = VIEW_TITLES[view] || 'Organiza';
     $('#view-home').classList.toggle('hidden', view !== 'home');
     $('#view-settings').classList.toggle('hidden', view !== 'settings');
+    $('#view-week').classList.toggle('hidden', view !== 'week');
     $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates'].includes(view));
     $('#btn-home').style.visibility = view === 'home' ? 'hidden' : 'visible';
     $('#fab').classList.toggle('hidden', view === 'settings');
@@ -83,6 +86,17 @@
       if (state.view === 'settings') {
         if (!state.settingsLoaded) { await loadSettings(); state.settingsLoaded = true; }
         await loadWa();
+        return;
+      }
+      if (state.view === 'week') {
+        const q = state.weekStart ? `?start=${state.weekStart}` : '';
+        const w = await api('GET', `/api/week${q}`);
+        state.today = w.today;
+        state.counts = w.counts;
+        state.week = w;
+        state.weekStart = w.start;
+        renderCounts();
+        renderWeek();
         return;
       }
       const view = state.view === 'home' ? 'today' : state.view;
@@ -266,14 +280,14 @@
 
   // ---------- editor ----------
   const sheet = $('#sheet');
-  function openEditor(task) {
+  function openEditor(task, preset = {}) {
     state.editing = task || null;
     $('#sheet-title').textContent = task ? (task.is_template ? 'Tarefa recorrente' : 'Tarefa') : 'Nova tarefa';
     $('#f-id').value = task?.id || '';
     $('#f-title').value = task?.title || '';
     $('#f-notes').value = task?.notes || '';
-    $('#f-start').value = task?.start_date || '';
-    $('#f-due').value = task?.due_date || '';
+    $('#f-start').value = task?.start_date || preset.start_date || '';
+    $('#f-due').value = task?.due_date || preset.due_date || '';
     $('#f-priority').checked = Boolean(task?.priority);
     $('#f-delete').classList.toggle('hidden', !task);
 
@@ -417,6 +431,133 @@
   $('#task-form').addEventListener('submit', (e) => { e.preventDefault(); saveEditor(); });
   $('#f-delete').addEventListener('click', deleteEditing);
   $('#fab').addEventListener('click', () => openEditor(null));
+
+
+  // ---------- bloco da semana ----------
+  function mondayOf(ymd) {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const back = (dt.getDay() + 6) % 7;
+    return addDays(ymd, -back);
+  }
+  function fmtDayMonth(ymd) {
+    const [, m, d] = ymd.split('-').map(Number);
+    return `${d} ${MONTHS_SHORT[m - 1]}`;
+  }
+
+  function renderWeek() {
+    const w = state.week;
+    if (!w) return;
+    const body = $('#week-body');
+    body.innerHTML = '';
+
+    const [sy] = w.start.split('-');
+    const [ey] = w.end.split('-');
+    const isCurrent = w.today >= w.start && w.today <= w.end;
+    $('#week-label').textContent = `${fmtDayMonth(w.start)} – ${fmtDayMonth(w.end)}${sy !== ey || sy !== String(new Date().getFullYear()) ? ' ' + ey : ''}`;
+    $('#week-today').classList.toggle('hidden', isCurrent);
+
+    const section = (title, cls = '') => {
+      const h = document.createElement('div');
+      h.className = 'paper-section ' + cls;
+      h.textContent = title;
+      body.appendChild(h);
+      return h;
+    };
+    const emptyLine = (text = '—') => {
+      const e = document.createElement('div');
+      e.className = 'paper-empty';
+      e.textContent = text;
+      body.appendChild(e);
+    };
+
+    if (w.overdue.length) {
+      section('Atrasadas', 'overdue');
+      for (const t of w.overdue) body.appendChild(renderPaperItem(t, { showDate: true }));
+    }
+
+    for (const day of w.days) {
+      const [, , d] = day.date.split('-').map(Number);
+      const wd = new Date(...day.date.split('-').map((x, i) => (i === 1 ? Number(x) - 1 : Number(x)))).getDay();
+      const isToday = day.date === w.today;
+      const h = section(`${WEEKDAYS_LONG[wd]}, ${d}`, 'day' + (isToday ? ' today' : '') + (day.date < w.today ? ' past' : ''));
+      if (isToday) {
+        const tag = document.createElement('span');
+        tag.className = 'today-tag';
+        tag.textContent = 'hoje';
+        h.appendChild(tag);
+      }
+      const add = document.createElement('button');
+      add.className = 'paper-add';
+      add.title = 'Nova tarefa neste dia';
+      add.textContent = '+';
+      add.addEventListener('click', () => openEditor(null, { due_date: day.date }));
+      h.appendChild(add);
+
+      if (!day.tasks.length) emptyLine();
+      for (const t of day.tasks) body.appendChild(renderPaperItem(t));
+    }
+
+    section('Sem data', 'undated');
+    if (!w.undated.length) emptyLine('nada pendente');
+    for (const t of w.undated) body.appendChild(renderPaperItem(t));
+  }
+
+  function renderPaperItem(t, opts = {}) {
+    const li = document.createElement('div');
+    li.className = 'paper-item' + (t.completed_at ? ' completed' : '') + (t.virtual ? ' virtual' : '');
+
+    const tick = document.createElement('button');
+    tick.className = 'tick' + (t.completed_at ? ' done' : '') + (t.priority ? ' high' : '');
+    tick.innerHTML = t.completed_at
+      ? '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12.5 10 17l9-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '';
+    if (t.virtual) {
+      tick.title = 'Ocorrência prevista: entra na lista no dia';
+      tick.addEventListener('click', () => toast('Ocorrência prevista. Ela entra na lista quando o dia chegar.'));
+    } else {
+      tick.title = t.completed_at ? 'Reabrir' : 'Concluir';
+      tick.addEventListener('click', (e) => { e.stopPropagation(); toggleComplete(t); });
+    }
+
+    const main = document.createElement('div');
+    main.className = 'paper-main';
+    const title = document.createElement('span');
+    title.className = 'paper-title';
+    if (t.priority) {
+      const p = document.createElement('span'); p.className = 'prio'; p.textContent = '!'; title.appendChild(p);
+    }
+    title.appendChild(document.createTextNode(t.title));
+    main.appendChild(title);
+
+    const meta = [];
+    if (opts.showDate && t.due_date) meta.push('⏰ ' + fmtDate(t.due_date));
+    if (t.kind === 'scheduled') meta.push('entra na lista');
+    if (t.kind === 'projected' || t.template_id) meta.push('🔁' + (t.recurrence_label ? ' ' + t.recurrence_label.toLowerCase() : ''));
+    if (t.source === 'whatsapp') meta.push('WhatsApp');
+    if (t.notes) meta.push(t.notes.length > 60 ? t.notes.slice(0, 60) + '…' : t.notes);
+    if (meta.length) {
+      const m = document.createElement('span');
+      m.className = 'paper-meta';
+      m.textContent = meta.join(' · ');
+      main.appendChild(m);
+    }
+
+    main.addEventListener('click', async () => {
+      if (t.virtual) {
+        try { openEditor(await api('GET', `/api/tasks/${t.template_id}`)); } catch (e) { toast(e.message); }
+      } else {
+        openEditor(t);
+      }
+    });
+
+    li.append(tick, main);
+    return li;
+  }
+
+  $('#week-prev').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), -7); refresh(); });
+  $('#week-next').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), 7); refresh(); });
+  $('#week-today').addEventListener('click', () => { state.weekStart = mondayOf(todayYmd()); refresh(); });
 
   // ---------- avisos ----------
   async function loadNotices() {

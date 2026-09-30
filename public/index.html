@@ -51,6 +51,10 @@
           </button>
         </div>
         <div class="list-group">
+          <button class="row-link" data-view="week">
+            <span class="row-icon week">📝</span><span class="row-text">Bloco da semana</span>
+            <span class="chev">›</span>
+          </button>
           <button class="row-link" data-view="templates">
             <span class="row-icon">🔁</span><span class="row-text">Recorrentes</span>
             <span class="row-count" id="count-templates">0</span><span class="chev">›</span>
@@ -68,6 +72,19 @@
         <div id="list-summary" class="hint"></div>
         <ul id="task-list" class="tasks"></ul>
         <div id="list-empty" class="empty hidden"></div>
+      </section>
+
+      <!-- Bloco da semana -->
+      <section id="view-week" class="view hidden">
+        <div class="week-nav">
+          <button id="week-prev" class="icon-btn" aria-label="Semana anterior">‹</button>
+          <div class="week-title"><strong id="week-label"></strong><button id="week-today" class="link small">Hoje</button></div>
+          <button id="week-next" class="icon-btn" aria-label="Próxima semana">›</button>
+        </div>
+        <div class="paper">
+          <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="paper-body" id="week-body"></div>
+        </div>
       </section>
 
       <!-- Configurações -->

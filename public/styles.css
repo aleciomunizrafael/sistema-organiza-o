@@ -88,6 +88,7 @@ code { background: var(--bg); padding: 2px 6px; border-radius: 6px; font-size: .
   width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: none; border: 0; text-align: left;
 }
 .row-link:active { background: var(--sep); }
+.row-icon.week { background: var(--orange); }
 .row-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--purple); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
 .row-text { flex: 1; font-size: 16px; }
 .row-count { color: var(--muted); }
@@ -183,4 +184,48 @@ h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spa
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom));
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; z-index: 30;
   box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+}
+
+/* Bloco da semana (papel) */
+.week-nav { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 10px; }
+.week-nav .icon-btn { font-size: 26px; line-height: 1; padding: 4px 12px; }
+.week-title { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.link.small { font-size: 14px; padding: 2px 8px; border: 1px solid var(--blue); border-radius: 999px; }
+.paper {
+  --paper: #fffdf5; --rule: #d9e3f0; --margin: #f2b8b5; --ink: #1f2a44; --pencil: #7a8394;
+  background: var(--paper); color: var(--ink);
+  border-radius: 6px 6px 12px 12px; box-shadow: 0 2px 6px rgba(0, 0, 0, .12), 0 12px 24px rgba(0, 0, 0, .06);
+  position: relative; padding: 18px 14px 20px 44px; min-height: 60vh;
+  background-image: repeating-linear-gradient(transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
+  background-attachment: local;
+}
+.paper::before { content: ''; position: absolute; top: 0; bottom: 0; left: 34px; width: 2px; background: var(--margin); border-radius: 2px; }
+.paper-holes { position: absolute; left: 10px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+.paper-holes i { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25); }
+@media (prefers-color-scheme: dark) {
+  .paper { --paper: #2a2620; --rule: #3d3830; --margin: #8a4a46; --ink: #f1ebdc; --pencil: #a9a08f; }
+}
+.paper-section {
+  font-weight: 700; font-size: 15px; line-height: 32px; margin-top: 8px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px;
+  border-bottom: 2px solid var(--ink); width: fit-content; padding-right: 8px;
+}
+.paper-section:first-child { margin-top: 0; }
+.paper-section.today { color: var(--blue); border-color: var(--blue); }
+.paper-section.past { color: var(--pencil); border-color: var(--pencil); }
+.paper-section.overdue { color: var(--red); border-color: var(--red); }
+.paper-section.undated { margin-top: 24px; }
+.today-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; background: var(--blue); color: #fff; border-radius: 999px; padding: 1px 8px; line-height: 16px; }
+.paper-add { background: none; border: 1px dashed var(--pencil); color: var(--pencil); border-radius: 50%; width: 22px; height: 22px; line-height: 1; padding: 0; font-size: 16px; }
+.paper-add:hover, .paper-add:active { color: var(--blue); border-color: var(--blue); }
+.paper-empty { color: var(--pencil); line-height: 32px; padding-left: 34px; font-size: 14px; }
+.paper-item { display: flex; align-items: flex-start; gap: 10px; line-height: 32px; min-height: 32px; }
+.paper-item .tick { margin-top: 4px; }
+.paper-main { flex: 1; min-width: 0; cursor: pointer; display: flex; flex-wrap: wrap; column-gap: 10px; align-items: baseline; }
+.paper-title { font-size: 16px; }
+.paper-meta { color: var(--pencil); font-size: 12.5px; }
+.paper-item.completed .paper-title { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--pencil); }
+.paper-item.virtual { opacity: .55; }
+.paper-item.virtual .tick { border-style: dashed; }
+@media (min-width: 860px) {
+  .paper { padding-left: 52px; }
 }

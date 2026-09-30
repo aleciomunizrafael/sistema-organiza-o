@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { createTask, updateTask, deleteTask, getTask, listTasks, counts } from '../services/tasks.js';
+import { createTask, updateTask, deleteTask, getTask, listTasks, counts, weekView } from '../services/tasks.js';
 import { getSettings, setSettings, listNotices, dismissNotice, DEFAULT_SETTINGS } from '../db/database.js';
-import { today } from '../services/dates.js';
+import { today, mondayOf, isValidYmd } from '../services/dates.js';
 import { extractDate, extractRecurrence } from '../services/dateParser.js';
 import { parseDemand } from '../whatsapp/parser.js';
 import * as wa from '../whatsapp/client.js';
@@ -15,6 +15,15 @@ export function apiRouter() {
   r.get('/tasks', (req, res) => {
     const view = String(req.query.view || 'today');
     res.json({ today: today(), counts: counts(), tasks: listTasks(view) });
+  });
+
+  // Visão semanal ("bloco"): ?start=YYYY-MM-DD (segunda-feira); padrão = semana atual
+  r.get('/week', (req, res) => {
+    const t = today();
+    let start = String(req.query.start || '');
+    if (!isValidYmd(start)) start = mondayOf(t);
+    else start = mondayOf(start);
+    res.json({ counts: counts(), ...weekView(start, t) });
   });
 
   r.get('/tasks/:id', (req, res) => {

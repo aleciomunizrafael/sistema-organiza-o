@@ -5,6 +5,7 @@ Sistema pessoal de tarefas e demandas, no estilo do app Lembretes do iPhone, com
 - Tarefas ficam na lista até serem concluídas.
 - Tarefas agendadas só entram na lista na data escolhida.
 - Tarefas recorrentes (diárias, dias úteis, semanais, quinzenais, mensais, anuais ou personalizadas).
+- **Bloco da semana**: uma tela só, com cara de bloco de papel, mostrando a semana dia a dia (prazos, agendadas e recorrências previstas) e, embaixo, as tarefas sem data, que aparecem sempre.
 - Bot do WhatsApp: qualquer mensagem no grupo com o marcador (padrão `#demanda`) vira tarefa, com resposta de confirmação no grupo.
 - Entende datas escritas em português: "até sexta", "amanhã", "15/10", "dia 20", "todo dia 5", "toda segunda".
 - Interface web responsiva, instalável como app no celular (PWA), com modo claro e escuro.
@@ -116,6 +117,7 @@ A interface usa uma API REST simples que você pode chamar de outros lugares (at
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/api/tasks?view=today\|scheduled\|all\|completed\|templates` | Lista tarefas e contadores |
+| GET | `/api/week?start=YYYY-MM-DD` | Visão semanal (dias, previstas, sem data, atrasadas); `start` é qualquer dia da semana desejada |
 | POST | `/api/tasks` | Cria. Aceita `{ "text": "Ligar para João amanhã" }` (interpreta a data) ou os campos completos `title, notes, start_date, due_date, priority, recurrence` |
 | PATCH | `/api/tasks/:id` | Edita; `{ "completed": true }` conclui |
 | DELETE | `/api/tasks/:id` | Exclui |
@@ -125,6 +127,16 @@ A interface usa uma API REST simples que você pode chamar de outros lugares (at
 | POST | `/api/whatsapp/reconnect`, `/api/whatsapp/logout` | Controle da sessão |
 
 Formato da recorrência: `"daily"`, `"weekdays"`, `"weekly"`, `"biweekly"`, `"monthly"`, `"yearly"` ou um objeto `{ "freq": "weekly", "interval": 2, "weekdays": [1, 3], "until": "2026-12-31" }` (0 = domingo).
+
+## Bloco da semana
+
+Na tela inicial, toque em **Bloco da semana**. A tela mostra:
+
+- **Atrasadas**, no topo, quando houver tarefas com prazo vencido em semanas anteriores.
+- **Segunda a domingo**, cada dia com as tarefas cujo prazo cai naquele dia, as agendadas para entrar naquele dia e as recorrências. Ocorrências futuras de recorrências aparecem em tom mais claro, como previsão, e entram na lista de verdade quando o dia chega. Tarefas concluídas ficam riscadas no dia.
+- **Sem data**, embaixo, com todas as tarefas abertas que não têm prazo. Elas aparecem em qualquer semana.
+
+As setas trocam de semana e o botão "Hoje" volta para a atual. O "+" ao lado de cada dia cria uma tarefa já com aquele prazo. Marcar o círculo conclui a tarefa na hora.
 
 ## Como a recorrência funciona
 
