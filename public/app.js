@@ -523,7 +523,7 @@
       for (const t of w.undated) items.appendChild(renderPaperItem(t));
       main.appendChild(items);
     }
-    main.appendChild(renderAddLine({ placeholder: 'Nova demanda… (Enter para anotar)' }));
+    main.appendChild(renderAddLine());
 
     // ----- folha secundária: sem data (algum dia) -----
     const hs = section(some, 'Sem data', 'someday');
@@ -542,7 +542,7 @@
       for (const t of w.someday || []) items.appendChild(renderPaperItem(t));
       some.appendChild(items);
     }
-    some.appendChild(renderAddLine({ someday: true, placeholder: 'Guardar para depois… ex.: Comprar papel de outro fornecedor quando o papel acabar' }));
+    some.appendChild(renderAddLine({ someday: true }));
 
     // ----- folha da semana -----
     if (w.overdue.length) {
@@ -582,7 +582,8 @@
     tick.className = 'tick ghost';
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = opts.placeholder || 'Nova demanda…';
+    input.placeholder = opts.placeholder || '';
+    input.setAttribute('aria-label', opts.someday ? 'Nova tarefa sem data' : 'Nova demanda');
     input.autocomplete = 'off';
     input.addEventListener('keydown', async (e) => {
       if (e.key !== 'Enter') return;
