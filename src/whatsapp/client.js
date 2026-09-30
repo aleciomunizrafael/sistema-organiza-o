@@ -180,6 +180,7 @@ async function connect() {
   });
 
   sock.ev.on('messages.upsert', ({ messages, type }) => {
+    log.debug({ type, count: messages.length }, 'messages.upsert');
     if (type !== 'notify' && type !== 'append') return;
     for (const msg of messages) {
       try { handleMessage(msg); } catch (e) { log.error({ err: e.message }, 'erro ao processar mensagem'); }
@@ -220,6 +221,7 @@ async function refreshGroups() {
   state.groups = Object.values(groups)
     .map((g) => ({ jid: g.id, subject: g.subject || g.id, participants: g.participants?.length || 0 }))
     .sort((a, b) => a.subject.localeCompare(b.subject, 'pt-BR'));
+  log.info({ groups: state.groups.length, monitorado: getSettings().wa_group_jid || '(nenhum)' }, 'grupos carregados');
 }
 
 function senderInfo(msg) {
@@ -231,33 +233,51 @@ function senderInfo(msg) {
 
 function tsOf(msg) {
   const t = msg.messageTimestamp;
-  if (t == null) return Date.now();
-  const n = typeof t === 'number' ? t : typeof t === 'object' && typeof t.toNumber === 'function' ? t.toNumber() : Number(t);
+  let n;
+  if (t == null) n = NaN;
+  else if (typeof t === 'number') n = t;
+  else if (typeof t === 'bigint') n = Number(t);
+  else if (typeof t === 'object' && typeof t.toNumber === 'function') n = t.toNumber();
+  else if (typeof t === 'object' && typeof t.low === 'number') n = (t.high >>> 0) * 4294967296 + (t.low >>> 0);
+  else n = Number(t);
+  if (!Number.isFinite(n) || n <= 0) return Date.now();
   return n * 1000;
 }
 
 function handleMessage(msg) {
-  if (!msg?.message || !msg.key?.id) return;
+  if (!msg?.key?.id) return;
+  if (!msg.message) {
+    log.debug({ id: msg.key.id, chat: msg.key.remoteJid, stub: msg.messageStubType }, 'mensagem sem conteúdo (não decifrada ou evento de sistema)');
+    return;
+  }
   const settings = getSettings();
   const chat = msg.key.remoteJid || '';
   const isGroup = chat.endsWith('@g.us');
+  const text = extractMessageText(msg.message);
+  const isTargetChat = Boolean(settings.wa_group_jid) && chat === settings.wa_group_jid;
 
   state.stats.received++;
 
+  // Mensagens do grupo configurado aparecem no log em nível info; as demais em debug
+  const diag = { id: msg.key.id, chat, fromMe: Boolean(msg.key.fromMe), from: msg.pushName || '', text: text.slice(0, 80) };
+  const ignore = (reason) => {
+    state.stats.ignored++;
+    log[isTargetChat ? 'info' : 'debug']({ ...diag, reason }, 'mensagem ignorada');
+  };
+
   // Só processa o grupo configurado (ou o próprio chat "você" como caixa de entrada pessoal)
   const isSelfChat = !isGroup && state.me && chat.startsWith(state.me.id) && msg.key.fromMe;
-  if (!settings.wa_group_jid && !isSelfChat) { state.stats.ignored++; return; }
-  if (settings.wa_group_jid && chat !== settings.wa_group_jid && !isSelfChat) { state.stats.ignored++; return; }
+  if (!settings.wa_group_jid && !isSelfChat) return ignore('nenhum grupo configurado em Configurações');
+  if (settings.wa_group_jid && !isTargetChat && !isSelfChat) return ignore('não é o grupo monitorado');
 
-  if (msg.key.fromMe && settings.wa_accept_own !== '1' && !isSelfChat) { state.stats.ignored++; return; }
+  if (msg.key.fromMe && settings.wa_accept_own !== '1' && !isSelfChat) return ignore('mensagem própria (opção desativada)');
 
-  const text = extractMessageText(msg.message);
-  if (!text) { state.stats.ignored++; return; }
+  if (!text) return ignore('mensagem sem texto (mídia, figurinha, áudio...)');
 
   const tsMs = tsOf(msg);
   const first = Number(getState('wa_first_connected_at') || 0);
   // Ignora mensagens anteriores ao primeiro pareamento (com tolerância de 10 min)
-  if (first && tsMs < first - 10 * 60_000) { state.stats.ignored++; return; }
+  if (first && tsMs < first - 10 * 60_000) return ignore('anterior ao primeiro pareamento');
 
   const sender = senderInfo(msg);
   const allowed = (settings.wa_allowed_senders || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -267,11 +287,12 @@ function handleMessage(msg) {
       if (digits && /^[\d\s()+\-]+$/.test(a)) return sender.number.endsWith(digits);
       return sender.name.toLowerCase().includes(a);
     });
-    if (!ok) { state.stats.ignored++; return; }
+    if (!ok) return ignore(`remetente "${sender.label}" não está na lista de permitidos`);
   }
 
   const demand = parseDemand(text, settings.wa_marker);
-  if (!demand) { state.stats.ignored++; return; }
+  if (!demand) return ignore(`sem o marcador "${settings.wa_marker}"`);
+  log.info(diag, 'demanda reconhecida');
 
   const db = getDb();
   if (db.prepare('SELECT 1 FROM wa_messages WHERE message_id = ?').get(msg.key.id)) {
