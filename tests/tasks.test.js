@@ -139,3 +139,81 @@ test('recorrência ignora o modo "sem data"', () => {
   updateTask(tpl.id, { someday: true });
   assert.equal(getTask(tpl.id).someday, false);
 });
+
+// ---------- correções da auditoria ----------
+
+test('modelo nunca fica sem âncora: converter tarefa sem data em recorrente grava hoje em start_date', () => {
+  const t = createTask({ title: 'Pagar boleto' });
+  updateTask(t.id, { title: 'Pagar boleto', notes: '', start_date: null, due_date: null, priority: false, recurrence: { freq: 'monthly', interval: 1 } });
+  const tpl = getTask(t.id);
+  assert.equal(tpl.is_template, true);
+  assert.equal(tpl.start_date, todayYmd());
+  // concluir a ocorrência de hoje e chamar o agendador amanhã: nada novo (regra mensal)
+  const [occ] = listTasks('all');
+  updateTask(occ.id, { completed: true });
+  assert.equal(ensureOccurrence(t.id, addDays(todayYmd(), 1)), null);
+  // apagar "Começa em" de um modelo mantém a âncora anterior
+  updateTask(t.id, { start_date: '' });
+  assert.equal(getTask(t.id).start_date, todayYmd());
+});
+
+test('ocorrência não vira modelo: recurrence em PATCH de ocorrência é ignorada', () => {
+  const tpl = createTask({ title: 'Semanal', recurrence: 'weekly', start_date: '2026-09-01' });
+  const [occ] = listTasks('all');
+  updateTask(occ.id, { recurrence: { freq: 'daily', interval: 1 }, someday: true });
+  const after = getTask(occ.id);
+  assert.equal(after.is_template, false);
+  assert.equal(after.recurrence, null);
+  assert.equal(after.someday, false);
+  assert.equal(after.template_id, tpl.id);
+});
+
+test('excluir uma ocorrência não é desfeito pelo agendador', () => {
+  const tpl = createTask({ title: 'Diária', recurrence: 'daily', start_date: '2026-09-01' });
+  const [occ] = listTasks('all');
+  const date = occ.occurrence_date;
+  assert.equal(deleteTask(occ.id), true);
+  assert.equal(materializeAll(date), 0);
+  assert.equal(listTasks('all').filter((t) => t.template_id === tpl.id).length, 0);
+  // no dia seguinte a próxima ocorrência é criada normalmente
+  const next = ensureOccurrence(tpl.id, addDays(date, 1));
+  assert.equal(next.occurrence_date, addDays(date, 1));
+  // excluir o modelo remove tudo, inclusive as datas puladas
+  deleteTask(tpl.id);
+  assert.equal(listTasks('templates').length, 0);
+});
+
+test('reabrir ocorrência antiga com outra aberta é recusado', () => {
+  const tpl = createTask({ title: 'Diária', recurrence: 'daily', start_date: '2026-09-01' });
+  const [first] = listTasks('all');
+  updateTask(first.id, { completed: true });
+  const created = ensureOccurrence(tpl.id, addDays(first.occurrence_date, 1));
+  assert.ok(created);
+  assert.throws(() => updateTask(first.id, { completed: false }), /ocorrência aberta/);
+  // sem outra aberta, reabrir funciona
+  updateTask(created.id, { completed: true });
+  assert.equal(ensureOccurrence(tpl.id, created.occurrence_date), null);
+  updateTask(first.id, { completed: false });
+  assert.equal(getTask(first.id).completed_at, null);
+});
+
+test('modelo pausado convertido em "não repete" vira tarefa aberta, não concluída', () => {
+  const tpl = createTask({ title: 'Pausável', recurrence: 'daily' });
+  updateTask(tpl.id, { completed: true }); // pausa
+  updateTask(tpl.id, { recurrence: null });
+  const t = getTask(tpl.id);
+  assert.equal(t.is_template, false);
+  assert.equal(t.completed_at, null);
+});
+
+test('booleanos vindos como texto e título não textual', () => {
+  const t = createTask({ title: 'X', priority: 'false', someday: 'false' });
+  assert.equal(t.priority, 0);
+  assert.equal(t.someday, false);
+  updateTask(t.id, { completed: 'false' });
+  assert.equal(getTask(t.id).completed_at, null);
+  updateTask(t.id, { completed: 'true' });
+  assert.ok(getTask(t.id).completed_at);
+  assert.throws(() => createTask({ title: { a: 1 } }), /Título/);
+  assert.throws(() => createTask({ title: 'ok', notes: ['x'] }), /Texto inválido/);
+});

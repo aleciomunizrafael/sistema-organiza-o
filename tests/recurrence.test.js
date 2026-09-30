@@ -54,3 +54,14 @@ test('describeRule', () => {
   assert.equal(describeRule({ freq: 'weekly', interval: 1, weekdays: [1, 2, 3, 4, 5] }), 'Dias úteis');
   assert.equal(describeRule({ freq: 'monthly', interval: 1, monthDay: 5 }), 'Todo mês no dia 5');
 });
+
+test('mensal em vários dias (monthDays), com dia 31 caindo no último dia do mês', () => {
+  const rule = normalizeRule({ freq: 'monthly', interval: 1, monthDays: [15, 31] });
+  assert.deepEqual(rule.monthDays, [15, 31]);
+  assert.equal(matches(rule, '2026-01-01', '2026-02-15'), true);
+  assert.equal(matches(rule, '2026-01-01', '2026-02-28'), true);
+  assert.equal(matches(rule, '2026-01-01', '2026-02-20'), false);
+  assert.equal(nextOccurrence(rule, '2026-01-01', '2026-03-16'), '2026-03-31');
+  assert.equal(describeRule(rule), 'Todo mês nos dias 15 e 31');
+  assert.deepEqual(normalizeRule({ freq: 'monthly', monthDays: [5] }), { freq: 'monthly', interval: 1, monthDay: 5 });
+});

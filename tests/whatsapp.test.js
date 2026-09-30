@@ -122,3 +122,51 @@ test('registro em wa_messages liga a mensagem à tarefa', () => {
   assert.equal(row.task_id, listTasks('all')[0].id);
   assert.equal(listNotices().length, 0);
 });
+
+// ---------- correções da auditoria ----------
+
+test('marcador na 2ª linha: a linha do marcador é o título, a saudação é descartada', () => {
+  const d = parseDemand('Bom dia pessoal\n#demanda Revisar contrato até sexta', '#demanda', BASE);
+  assert.equal(d.title, 'Revisar contrato');
+  assert.equal(d.due_date, '2026-10-02');
+  const e = parseDemand('Oi gente\n#demanda urgente Pagar boleto amanhã\nver com o financeiro', '#demanda', BASE);
+  assert.equal(e.title, 'Pagar boleto');
+  assert.equal(e.priority, 1);
+  assert.equal(e.notes, 'ver com o financeiro');
+  const f = parseDemand('Bom dia\n#demanda\nRevisar contrato até sexta', '#demanda', BASE);
+  assert.equal(f.title, 'Revisar contrato');
+});
+
+test('"prioridade"/"urgência" como substantivo não alteram a tarefa; "urgente" sim', () => {
+  const a = parseDemand('#demanda Definir a prioridade dos projetos', '#demanda', BASE);
+  assert.equal(a.priority, 0);
+  assert.equal(a.title, 'Definir a prioridade dos projetos');
+  const b = parseDemand('#demanda Prioridade: revisar o contrato', '#demanda', BASE);
+  assert.equal(b.priority, 1);
+  assert.equal(b.title, 'Revisar o contrato');
+  const c = parseDemand('#demanda Revisar o contrato, urgente', '#demanda', BASE);
+  assert.equal(c.priority, 1);
+  assert.equal(c.title, 'Revisar o contrato');
+});
+
+test('"até <data>" em recorrência vira fim (until); "a partir de" vira início', () => {
+  const a = parseDemand('#demanda Fechar caixa todo dia até 15/10', '#demanda', BASE);
+  assert.deepEqual(a.recurrence, { freq: 'daily', interval: 1, until: '2026-10-15' });
+  assert.equal(a.start_date, null);
+  assert.equal(a.title, 'Fechar caixa');
+  const b = parseDemand('#demanda Fechar caixa todo dia a partir de 15/10', '#demanda', BASE);
+  assert.deepEqual(b.recurrence, { freq: 'daily', interval: 1 });
+  assert.equal(b.start_date, '2026-10-15');
+});
+
+test('remetente em grupo no modo LID: telefone vem de participantAlt e passa no filtro', () => {
+  wa.setSock({ sendMessage: async () => {} });
+  setSettings({ wa_allowed_senders: '5511999990000' });
+  const m = msg({ id: 'L1', text: '#demanda Do LID' });
+  m.key.participant = '123456789012345@lid';
+  m.key.participantAlt = '5511999990000@s.whatsapp.net';
+  wa.handleMessage(m);
+  const t = listTasks('all');
+  assert.equal(t.length, 1);
+  assert.match(t[0].source_sender, /5511999990000/);
+});

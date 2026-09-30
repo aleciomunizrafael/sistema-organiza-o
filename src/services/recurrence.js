@@ -7,6 +7,7 @@ import { fromYmd, toYmd, addDays, diffDays, daysInMonth, mondayOf, weekdayOf } f
  *   interval: 1,                 // a cada N dias/semanas/meses/anos
  *   weekdays: [1,2,3,4,5],       // só weekly; 0 = domingo ... 6 = sábado
  *   monthDay: 5,                 // só monthly; padrão = dia da âncora
+ *   monthDays: [15, 30],         // só monthly; vários dias no mês (tem precedência sobre monthDay)
  *   until: 'YYYY-MM-DD' | null   // data final opcional
  * }
  * A âncora é a data de início do modelo (start_date).
@@ -32,7 +33,11 @@ export function normalizeRule(rule) {
   if (rule.freq === 'weekly' && Array.isArray(rule.weekdays) && rule.weekdays.length) {
     out.weekdays = [...new Set(rule.weekdays.map(Number).filter((d) => d >= 0 && d <= 6))].sort();
   }
-  if (rule.freq === 'monthly' && rule.monthDay) {
+  if (rule.freq === 'monthly' && Array.isArray(rule.monthDays) && rule.monthDays.length) {
+    const days = [...new Set(rule.monthDays.map((d) => parseInt(d, 10)).filter((d) => d >= 1 && d <= 31))].sort((a, b) => a - b);
+    if (days.length === 1) out.monthDay = days[0];
+    else if (days.length > 1) out.monthDays = days;
+  } else if (rule.freq === 'monthly' && rule.monthDay) {
     out.monthDay = Math.min(31, Math.max(1, parseInt(rule.monthDay, 10)));
   }
   if (rule.until) out.until = rule.until;
@@ -61,9 +66,9 @@ export function matches(rule, anchor, date) {
     case 'monthly': {
       const months = (d.getFullYear() - a.getFullYear()) * 12 + (d.getMonth() - a.getMonth());
       if (months % interval !== 0) return false;
-      const wanted = rule.monthDay || a.getDate();
-      const day = Math.min(wanted, daysInMonth(d.getFullYear(), d.getMonth() + 1));
-      return d.getDate() === day;
+      const dim = daysInMonth(d.getFullYear(), d.getMonth() + 1);
+      const wanted = rule.monthDays && rule.monthDays.length ? rule.monthDays : [rule.monthDay || a.getDate()];
+      return wanted.some((w) => d.getDate() === Math.min(w, dim));
     }
 
     case 'yearly': {
@@ -117,7 +122,11 @@ export function describeRule(rule) {
       return `A cada ${n} semanas` + days;
     }
     case 'monthly': {
-      const day = rule.monthDay ? ` no dia ${rule.monthDay}` : '';
+      let day = '';
+      if (rule.monthDays && rule.monthDays.length) {
+        const list = rule.monthDays.slice(0, -1).join(', ') + ' e ' + rule.monthDays[rule.monthDays.length - 1];
+        day = ` nos dias ${list}`;
+      } else if (rule.monthDay) day = ` no dia ${rule.monthDay}`;
       return (n === 1 ? 'Todo mês' : `A cada ${n} meses`) + day;
     }
     case 'yearly':

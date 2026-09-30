@@ -81,9 +81,14 @@
     startAutoRefresh();
   }
 
+  let refreshSeq = 0;
   async function refresh() {
+    const seq = ++refreshSeq;
+    const stale = () => seq !== refreshSeq;
     try {
       await loadNotices();
+      await loadWaBanner();
+      if (stale()) return;
       if (state.view === 'settings') {
         if (!state.settingsLoaded) { await loadSettings(); state.settingsLoaded = true; }
         await loadWa();
@@ -92,6 +97,7 @@
       if (state.view === 'week') {
         const q = state.weekStart ? `?start=${state.weekStart}` : '';
         const w = await api('GET', `/api/week${q}`);
+        if (stale()) return;
         state.today = w.today;
         state.counts = w.counts;
         state.week = w;
@@ -102,6 +108,7 @@
       }
       const view = state.view === 'home' ? 'today' : state.view;
       const data = await api('GET', `/api/tasks?view=${view}`);
+      if (stale()) return;
       state.today = data.today;
       state.counts = data.counts;
       state.tasks = data.tasks;
@@ -247,7 +254,8 @@
         const parts = [];
         if (p.recurrence) parts.push('🔁 ' + describeRule(p.recurrence) + (p.date ? ' a partir de ' + fmtDate(p.date) : ''));
         else if (p.date) parts.push('⏰ prazo ' + fmtDate(p.date));
-        $('#quick-preview').textContent = parts.length ? `"${p.title}" — ${parts.join(', ')}` : '';
+        if (p.recurrence?.until) parts.push('até ' + fmtDate(p.recurrence.until));
+        $('#quick-preview').textContent = parts.length ? `"${p.title || text}" — ${parts.join(', ')}` : '';
       } catch { /* ignore */ }
     }, 250);
   });
@@ -276,7 +284,7 @@
         const days = wd.length ? ' (' + wd.map((x) => WEEKDAYS_SHORT[x]).join(', ') + ')' : '';
         return (n === 1 ? 'toda semana' : `a cada ${n} semanas`) + days;
       }
-      case 'monthly': return (n === 1 ? 'todo mês' : `a cada ${n} meses`) + (rule.monthDay ? ` dia ${rule.monthDay}` : '');
+      case 'monthly': return (n === 1 ? 'todo mês' : `a cada ${n} meses`) + (rule.monthDays ? ` dias ${rule.monthDays.join(', ')}` : rule.monthDay ? ` dia ${rule.monthDay}` : '');
       case 'yearly': return n === 1 ? 'todo ano' : `a cada ${n} anos`;
       default: return '';
     }
@@ -298,6 +306,9 @@
     setMode(task ? (task.someday ? 'someday' : 'todo') : (preset.someday ? 'someday' : 'todo'));
     // modo só faz sentido para tarefas comuns (não recorrentes)
     $('#f-mode').classList.toggle('hidden', Boolean(task?.is_template || task?.template_id));
+    // ocorrência de recorrência: a repetição é editada no modelo (Recorrentes), não aqui
+    $('#f-repeat-wrap').classList.toggle('hidden', Boolean(task?.template_id));
+    if (task?.template_id) { $('#f-custom').classList.add('hidden'); $('#f-until-wrap').classList.add('hidden'); }
 
     // recorrência
     const rule = task?.recurrence || null;
@@ -343,27 +354,33 @@
     else if (isWeekdays) sel.value = 'weekdays';
     else if (rule.freq === 'weekly' && n === 1 && !wd.length) sel.value = 'weekly';
     else if (rule.freq === 'weekly' && n === 2 && !wd.length) sel.value = 'biweekly';
-    else if (rule.freq === 'monthly' && n === 1 && !rule.monthDay) sel.value = 'monthly';
+    else if (rule.freq === 'monthly' && n === 1 && !rule.monthDay && !rule.monthDays) sel.value = 'monthly';
     else if (rule.freq === 'yearly' && n === 1) sel.value = 'yearly';
     else {
       sel.value = 'custom';
       $('#f-freq').value = rule.freq;
       $('#f-interval').value = n;
       $$('#f-weekdays input').forEach((c) => { c.checked = wd.includes(Number(c.value)); });
-      if (rule.monthDay) $('#f-monthday').value = rule.monthDay;
+      if (rule.monthDays && rule.monthDays.length) $('#f-monthday').value = rule.monthDays.join(', ');
+      else if (rule.monthDay) $('#f-monthday').value = rule.monthDay;
     }
   }
 
   function currentMode() {
     return $('#f-mode button.active')?.dataset.mode || 'todo';
   }
+  function isOccurrenceEdit() { return Boolean(state.editing?.template_id); }
   function setMode(mode) {
-    $$('#f-mode button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    $$('#f-mode button').forEach((b) => {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
     const someday = mode === 'someday';
     $('#f-trigger-wrap').classList.toggle('hidden', !someday);
     $('#f-dates').classList.toggle('hidden', someday);
-    $('#f-repeat-wrap').classList.toggle('hidden', someday);
-    if (someday) { $('#f-custom').classList.add('hidden'); $('#f-until-wrap').classList.add('hidden'); }
+    $('#f-repeat-wrap').classList.toggle('hidden', someday || isOccurrenceEdit());
+    if (someday || isOccurrenceEdit()) { $('#f-custom').classList.add('hidden'); $('#f-until-wrap').classList.add('hidden'); }
     else updateRepeatUi();
   }
   $$('#f-mode button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
@@ -392,7 +409,11 @@
         const wd = $$('#f-weekdays input:checked').map((c) => Number(c.value));
         if (wd.length) rule.weekdays = wd;
       }
-      if (rule.freq === 'monthly' && $('#f-monthday').value) rule.monthDay = parseInt($('#f-monthday').value, 10);
+      if (rule.freq === 'monthly' && $('#f-monthday').value.trim()) {
+        const days = [...new Set($('#f-monthday').value.split(/[^\d]+/).map(Number).filter((n) => n >= 1 && n <= 31))];
+        if (days.length === 1) rule.monthDay = days[0];
+        else if (days.length > 1) rule.monthDays = days;
+      }
     } else {
       rule = v; // preset
     }
@@ -417,6 +438,7 @@
       recurrence = { ...presets[recurrence.preset], until: recurrence.until };
     }
     const someday = currentMode() === 'someday' && !state.editing?.is_template && !state.editing?.template_id;
+    if (recurrence && !$('#f-start').value) $('#f-start').value = state.today || todayYmd();
     const body = someday ? {
       title: $('#f-title').value,
       notes: $('#f-notes').value,
@@ -672,6 +694,35 @@
   $('#week-next').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), 7); refresh(); });
   $('#week-today').addEventListener('click', () => { state.weekStart = mondayOf(todayYmd()); refresh(); });
 
+  // ---------- faixa do WhatsApp (bot fora do ar) ----------
+  async function loadWaBanner() {
+    if (state.view === 'settings') { $('#wa-banner')?.remove(); return; }
+    let wa;
+    try { wa = await api('GET', '/api/whatsapp/status'); } catch { return; }
+    const bad = wa.enabled && !['connected', 'starting', 'connecting'].includes(wa.status);
+    let el = $('#wa-banner');
+    if (!bad) { el?.remove(); return; }
+    const text = {
+      qr: 'O bot do WhatsApp está aguardando a leitura do QR code.',
+      logged_out: 'A sessão do WhatsApp foi encerrada. É preciso escanear o QR code de novo.',
+      conflict: 'A sessão do WhatsApp está em uso por outra máquina.',
+      disconnected: 'O bot do WhatsApp está desconectado e tentando reconectar.',
+      error: 'O bot do WhatsApp encontrou um erro.',
+    }[wa.status] || `Bot do WhatsApp: ${wa.status}.`;
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'wa-banner';
+      el.className = 'notice';
+      const span = document.createElement('span');
+      const btn = document.createElement('button');
+      btn.textContent = 'Abrir';
+      btn.addEventListener('click', () => show('settings'));
+      el.append(span, btn);
+      $('#notices').prepend(el);
+    }
+    el.firstChild.textContent = '📵 ' + text;
+  }
+
   // ---------- avisos ----------
   async function loadNotices() {
     const list = await api('GET', '/api/notices');
@@ -709,13 +760,15 @@
       disabled: 'Desativado (WA_ENABLED=false)', starting: 'Iniciando…', qr: 'Aguardando leitura do QR code',
       connecting: 'Conectando…', connected: 'Conectado', disconnected: 'Desconectado, tentando reconectar…',
       logged_out: 'Sessão encerrada. Gere um novo QR code.', error: 'Erro: ' + (wa.lastError || ''),
+      conflict: 'Sessão em uso por outra máquina. Desligue o bot lá e clique em Reconectar.',
     };
     $('#wa-dot').className = 'dot ' + wa.status;
     $('#wa-status-text').textContent = labels[wa.status] || wa.status;
     $('#wa-me').textContent = wa.me ? `Número: ${wa.me.id}${wa.me.name ? ' · ' + wa.me.name : ''}` : '';
     $('#wa-qr-wrap').classList.toggle('hidden', !(wa.status === 'qr' && wa.qr));
     if (wa.qr) $('#wa-qr').src = wa.qr;
-    $('#wa-logout').disabled = !['connected', 'connecting', 'disconnected', 'qr'].includes(wa.status);
+    $('#wa-reconnect').disabled = wa.enabled === false;
+    $('#wa-logout').disabled = wa.enabled === false || !['connected', 'connecting', 'disconnected', 'qr', 'conflict'].includes(wa.status);
     const s = wa.stats || {};
     $('#wa-stats').textContent = wa.status === 'connected'
       ? `Nesta sessão: ${s.received || 0} mensagens vistas, ${s.demands || 0} demandas criadas, ${s.duplicates || 0} duplicadas ignoradas.`

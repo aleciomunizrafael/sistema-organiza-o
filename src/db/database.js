@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_open ON tasks(is_template, completed_at, start_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_template ON tasks(template_id);
 
+CREATE TABLE IF NOT EXISTS skipped_occurrences (
+  template_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  occurrence_date TEXT NOT NULL,
+  PRIMARY KEY (template_id, occurrence_date)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -120,7 +126,7 @@ export function getSettings() {
 export function setSettings(obj) {
   const stmt = getDb().prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   for (const [k, v] of Object.entries(obj)) {
-    if (k in DEFAULT_SETTINGS) stmt.run(k, String(v ?? ''));
+    if (Object.hasOwn(DEFAULT_SETTINGS, k)) stmt.run(k, String(v ?? ''));
   }
   return getSettings();
 }

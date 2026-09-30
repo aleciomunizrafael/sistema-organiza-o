@@ -21,6 +21,25 @@ function cleanDate(v) {
   return v;
 }
 
+/** Booleano tolerante a formulários: aceita true/1/'1'/'true'/'on'; tudo o mais é falso. */
+function toBool(v) {
+  if (typeof v === 'string') return ['1', 'true', 'on', 'yes', 'sim'].includes(v.trim().toLowerCase());
+  return v === true || v === 1;
+}
+
+function cleanTitle(v) {
+  if (typeof v !== 'string') throw new Error('Título obrigatório');
+  const t = v.trim();
+  if (!t) throw new Error('Título obrigatório');
+  return t;
+}
+
+function cleanText(v) {
+  if (v == null) return '';
+  if (typeof v !== 'string') throw new Error('Texto inválido');
+  return v.trim();
+}
+
 export function getTask(id) {
   return row(getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id));
 }
@@ -31,12 +50,11 @@ export function getTask(id) {
  */
 export function createTask(input) {
   const db = getDb();
-  const title = String(input.title || '').trim();
-  if (!title) throw new Error('Título obrigatório');
-  const notes = String(input.notes || '').trim();
-  const priority = input.priority ? 1 : 0;
-  const someday = input.someday ? 1 : 0;
-  const trigger = String(input.trigger_text || '').trim() || null;
+  const title = cleanTitle(input.title);
+  const notes = cleanText(input.notes);
+  const priority = toBool(input.priority) ? 1 : 0;
+  const someday = toBool(input.someday) ? 1 : 0;
+  const trigger = cleanText(input.trigger_text) || null;
   const rule = someday ? null : normalizeRule(input.recurrence);
   let startDate = someday ? null : cleanDate(input.start_date);
   let dueDate = someday ? null : cleanDate(input.due_date);
@@ -74,19 +92,17 @@ export function updateTask(id, input) {
   const values = [];
   const set = (col, val) => { fields.push(`${col} = ?`); values.push(val); };
 
-  if (input.title !== undefined) {
-    const t = String(input.title).trim();
-    if (!t) throw new Error('Título obrigatório');
-    set('title', t);
-  }
-  if (input.notes !== undefined) set('notes', String(input.notes || '').trim());
-  if (input.priority !== undefined) set('priority', input.priority ? 1 : 0);
-  if (input.trigger_text !== undefined) set('trigger_text', String(input.trigger_text || '').trim() || null);
+  if (input.title !== undefined) set('title', cleanTitle(input.title));
+  if (input.notes !== undefined) set('notes', cleanText(input.notes));
+  if (input.priority !== undefined) set('priority', toBool(input.priority) ? 1 : 0);
+  if (input.trigger_text !== undefined) set('trigger_text', cleanText(input.trigger_text) || null);
+
+  const isOccurrence = Boolean(current.template_id);
 
   // "Sem data" (algum dia): sem datas nem recorrência. Ganhar uma data devolve a tarefa para "A fazer".
   let someday = current.someday;
-  if (input.someday !== undefined && !current.is_template && !current.template_id) {
-    someday = Boolean(input.someday);
+  if (input.someday !== undefined && !current.is_template && !isOccurrence) {
+    someday = toBool(input.someday);
     set('someday', someday ? 1 : 0);
   }
   if (someday) {
@@ -96,31 +112,47 @@ export function updateTask(id, input) {
       set('someday', 0);
     }
   }
+
+  // Recorrência: uma ocorrência nunca vira modelo (isso bloquearia o modelo original)
+  const rule = input.recurrence !== undefined && !someday && !isOccurrence ? normalizeRule(input.recurrence) : undefined;
+  const willBeTemplate = rule === undefined ? current.is_template : Boolean(rule);
+
   if (!someday) {
-    if (input.start_date !== undefined) set('start_date', cleanDate(input.start_date));
-    if (input.due_date !== undefined && !current.is_template) set('due_date', cleanDate(input.due_date));
+    if (input.start_date !== undefined) {
+      let sd = cleanDate(input.start_date);
+      if (!sd && willBeTemplate) sd = current.start_date || todayYmd(); // um modelo sempre tem âncora
+      set('start_date', sd);
+    } else if (willBeTemplate && !current.start_date) {
+      set('start_date', todayYmd());
+    }
+    if (input.due_date !== undefined && !willBeTemplate) set('due_date', cleanDate(input.due_date));
   }
 
   if (input.completed !== undefined) {
-    set('completed_at', input.completed ? nowIso() : null);
+    const completed = toBool(input.completed);
+    if (!completed && isOccurrence && current.completed_at) {
+      const other = db.prepare('SELECT id FROM tasks WHERE template_id = ? AND completed_at IS NULL AND id != ? LIMIT 1')
+        .get(current.template_id, id);
+      if (other) throw new Error('Já existe uma ocorrência aberta desta tarefa recorrente. Conclua ou exclua a outra antes de reabrir esta.');
+    }
+    set('completed_at', completed ? nowIso() : null);
   }
 
-  if (input.recurrence !== undefined && !someday) {
-    const rule = normalizeRule(input.recurrence);
+  if (rule !== undefined) {
     if (current.is_template) {
       if (rule) set('recurrence', JSON.stringify(rule));
       else {
-        // Deixa de ser recorrente: vira tarefa comum (ocorrências existentes ficam)
+        // Deixa de ser recorrente: vira tarefa comum aberta (ocorrências concluídas ficam no histórico)
         set('recurrence', null);
         set('is_template', 0);
-        // remove ocorrências abertas futuras para não duplicar
+        if (input.completed === undefined) set('completed_at', null); // "pausado" não vira "concluído"
         db.prepare('DELETE FROM tasks WHERE template_id = ? AND completed_at IS NULL').run(id);
+        db.prepare('DELETE FROM skipped_occurrences WHERE template_id = ?').run(id);
       }
     } else if (rule) {
       set('recurrence', JSON.stringify(rule));
       set('is_template', 1);
       set('due_date', null);
-      if (!current.start_date && input.start_date === undefined) set('start_date', todayYmd());
     }
   }
 
@@ -148,8 +180,31 @@ export function updateTask(id, input) {
 }
 
 export function deleteTask(id) {
-  const r = getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id);
+  const db = getDb();
+  const t = getTask(id);
+  if (!t) return false;
+  // Excluir uma ocorrência: registra a data como pulada para o agendador não recriá-la
+  if (t.template_id && t.occurrence_date) {
+    db.prepare('INSERT OR IGNORE INTO skipped_occurrences (template_id, occurrence_date) VALUES (?, ?)')
+      .run(t.template_id, t.occurrence_date);
+  }
+  const r = db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
   return r.changes > 0;
+}
+
+/** Última data já tratada de um modelo: materializada ou pulada (excluída pelo usuário). */
+function lastHandledDate(templateId) {
+  const db = getDb();
+  const a = db.prepare('SELECT MAX(occurrence_date) AS d FROM tasks WHERE template_id = ?').get(templateId)?.d || null;
+  const b = db.prepare('SELECT MAX(occurrence_date) AS d FROM skipped_occurrences WHERE template_id = ?').get(templateId)?.d || null;
+  return a && b ? (a > b ? a : b) : (a || b);
+}
+
+/** Âncora da recorrência. Um modelo sem start_date recebe hoje como âncora (persistido). */
+function anchorOf(tpl, today) {
+  if (tpl.start_date) return tpl.start_date;
+  getDb().prepare('UPDATE tasks SET start_date = ? WHERE id = ? AND start_date IS NULL').run(today, tpl.id);
+  return today;
 }
 
 /**
@@ -166,10 +221,10 @@ export function ensureOccurrence(templateId, today = todayYmd()) {
   const open = db.prepare('SELECT id FROM tasks WHERE template_id = ? AND completed_at IS NULL LIMIT 1').get(templateId);
   if (open) return null;
 
-  const last = db.prepare('SELECT MAX(occurrence_date) AS d FROM tasks WHERE template_id = ?').get(templateId)?.d || null;
-  const anchor = tpl.start_date || today;
+  const last = lastHandledDate(templateId);
+  const anchor = anchorOf(tpl, today);
 
-  // Candidata: última data <= hoje que ainda não foi materializada
+  // Candidata: última data <= hoje que ainda não foi materializada nem pulada
   let date = lastOccurrenceUpTo(tpl.recurrence, anchor, today);
   if (!date || (last && date <= last)) return null;
 
@@ -192,10 +247,10 @@ export function materializeAll(today = todayYmd()) {
 /** Próxima data de um modelo a partir de hoje (para a lista "Agendadas"). */
 export function templateNextDate(tpl, today = todayYmd()) {
   if (!tpl.recurrence) return null;
-  const last = getDb().prepare('SELECT MAX(occurrence_date) AS d FROM tasks WHERE template_id = ?').get(tpl.id)?.d || null;
+  const last = lastHandledDate(tpl.id);
   let from = today;
   if (last && addDays(last, 1) > from) from = addDays(last, 1);
-  return nextOccurrence(tpl.recurrence, tpl.start_date || today, from);
+  return nextOccurrence(tpl.recurrence, anchorOf(tpl, today), from);
 }
 
 const ORDER_OPEN = `
@@ -282,13 +337,15 @@ export function weekView(start, today = todayYmd()) {
 
   // Recorrências previstas (ainda sem ocorrência materializada), só de hoje em diante
   const templates = db.prepare('SELECT * FROM tasks WHERE is_template = 1 AND completed_at IS NULL').all().map(row);
-  const existing = new Set(
-    db.prepare('SELECT template_id, occurrence_date FROM tasks WHERE template_id IS NOT NULL AND occurrence_date BETWEEN ? AND ?')
+  const existing = new Set([
+    ...db.prepare('SELECT template_id, occurrence_date FROM tasks WHERE template_id IS NOT NULL AND occurrence_date BETWEEN ? AND ?')
       .all(start, end).map((r) => `${r.template_id}|${r.occurrence_date}`),
-  );
+    ...db.prepare('SELECT template_id, occurrence_date FROM skipped_occurrences WHERE occurrence_date BETWEEN ? AND ?')
+      .all(start, end).map((r) => `${r.template_id}|${r.occurrence_date}`),
+  ]);
   for (const tpl of templates) {
     if (!tpl.recurrence) continue;
-    const anchor = tpl.start_date || today;
+    const anchor = anchorOf(tpl, today);
     for (const day of days) {
       if (day.date < today || day.date < anchor) continue;
       if (existing.has(`${tpl.id}|${day.date}`)) continue;

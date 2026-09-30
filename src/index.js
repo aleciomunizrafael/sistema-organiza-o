@@ -30,6 +30,20 @@ if (config.appPassword) {
   });
 }
 
+// Bloqueia POST/PUT/PATCH/DELETE vindos de outra origem (CSRF). Requisições sem Origin (scripts, curl) passam.
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const site = req.headers['sec-fetch-site'];
+  if (site && site !== 'same-origin' && site !== 'none') return res.status(403).json({ error: 'Origem não permitida' });
+  const origin = req.headers.origin;
+  if (origin) {
+    let host = null;
+    try { host = new URL(origin).host; } catch { /* "null" ou inválido: rejeita */ }
+    if (host !== req.headers.host) return res.status(403).json({ error: 'Origem não permitida' });
+  }
+  next();
+});
+
 app.use('/api', apiRouter());
 app.use(express.static(config.publicDir, { extensions: ['html'] }));
 
@@ -47,6 +61,8 @@ app.listen(config.port, config.host, () => {
 startScheduler(log);
 
 wa.start().catch((e) => log.error({ err: e.message }, 'falha ao iniciar WhatsApp'));
+
+process.on('unhandledRejection', (e) => log.error({ err: e?.message || String(e) }, 'rejeição não tratada'));
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {

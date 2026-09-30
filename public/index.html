@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Organiza">
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="/styles.css">
@@ -164,7 +164,7 @@
   <!-- Editor de tarefa -->
   <div id="sheet" class="sheet hidden">
     <div class="sheet-backdrop"></div>
-    <div class="sheet-body" role="dialog" aria-modal="true">
+    <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet-head">
         <button id="sheet-cancel" class="link">Cancelar</button>
         <strong id="sheet-title">Nova tarefa</strong>
@@ -172,11 +172,11 @@
       </div>
       <form id="task-form" class="form" autocomplete="off">
         <input type="hidden" id="f-id">
-        <input id="f-title" type="text" placeholder="Título" required>
+        <input id="f-title" type="text" placeholder="Título" aria-label="Título" required>
         <textarea id="f-notes" rows="3" placeholder="Observações"></textarea>
         <div class="seg" id="f-mode" role="radiogroup" aria-label="Quando fazer">
-          <button type="button" data-mode="todo" class="active">A fazer</button>
-          <button type="button" data-mode="someday">Sem data</button>
+          <button type="button" role="radio" aria-checked="true" data-mode="todo" class="active">A fazer</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="someday">Sem data</button>
         </div>
         <label id="f-trigger-wrap" class="hidden">Quando fazer (condição, não uma data)
           <input id="f-trigger" type="text" placeholder="ex.: quando o papel acabar">
@@ -225,8 +225,8 @@
             <label><input type="checkbox" value="6"> Sáb</label>
             <label><input type="checkbox" value="0"> Dom</label>
           </div>
-          <label id="f-monthday-wrap" class="hidden">Dia do mês
-            <input id="f-monthday" type="number" min="1" max="31">
+          <label id="f-monthday-wrap" class="hidden">Dia(s) do mês (ex.: 5 ou 15, 30)
+            <input id="f-monthday" type="text" inputmode="numeric" placeholder="5 ou 15, 30">
           </label>
         </div>
         <label id="f-until-wrap" class="hidden">Repetir até (opcional)

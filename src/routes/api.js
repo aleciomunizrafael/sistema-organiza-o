@@ -36,11 +36,14 @@ export function apiRouter() {
     const body = req.body || {};
     // Atalho: se vier só "text", interpreta datas/recorrência em português
     if (body.text && !body.title) {
-      const rec = extractRecurrence(body.text);
+      const rec = extractRecurrence(String(body.text));
       const dt = extractDate(rec.cleaned);
-      body.title = dt.cleaned || body.text;
-      if (rec.rule) { body.recurrence = rec.rule; if (dt.date) body.start_date = dt.date; }
-      else if (dt.date && !body.due_date) body.due_date = dt.date;
+      body.title = dt.cleaned || String(body.text);
+      if (rec.rule) {
+        // "até <data>" em recorrência é o fim da repetição; outra preposição é o início
+        if (dt.date && dt.isEnd) body.recurrence = { ...rec.rule, until: dt.date };
+        else { body.recurrence = rec.rule; if (dt.date) body.start_date = dt.date; }
+      } else if (dt.date && !body.due_date) body.due_date = dt.date;
     }
     res.status(201).json(createTask(body));
   });
@@ -62,7 +65,8 @@ export function apiRouter() {
     if (req.body?.marker) return res.json(parseDemand(text, req.body.marker));
     const rec = extractRecurrence(text);
     const dt = extractDate(rec.cleaned);
-    res.json({ title: dt.cleaned, date: dt.date, recurrence: rec.rule });
+    const isUntil = Boolean(rec.rule && dt.date && dt.isEnd);
+    res.json({ title: dt.cleaned || text, date: dt.date, isEnd: dt.isEnd, recurrence: isUntil ? { ...rec.rule, until: dt.date } : rec.rule });
   });
 
   // ---------- configurações ----------
@@ -82,10 +86,17 @@ export function apiRouter() {
   // ---------- whatsapp ----------
   r.get('/whatsapp/status', (_req, res) => res.json(wa.getStatus()));
   r.get('/whatsapp/groups', (_req, res) => res.json(wa.listGroups()));
+  const waGuard = (res) => {
+    if (wa.getStatus().enabled) return true;
+    res.status(409).json({ error: 'WhatsApp desativado (WA_ENABLED=false no .env)' });
+    return false;
+  };
   r.post('/whatsapp/reconnect', async (_req, res) => {
+    if (!waGuard(res)) return;
     try { await wa.reconnect(); res.json({ ok: true }); } catch (e) { res.status(500).json({ error: e.message }); }
   });
   r.post('/whatsapp/logout', async (_req, res) => {
+    if (!waGuard(res)) return;
     try { await wa.logout(); res.json({ ok: true }); } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

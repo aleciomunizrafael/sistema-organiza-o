@@ -20,14 +20,27 @@ Sistema pessoal de tarefas e demandas, no estilo do app Lembretes do iPhone, com
 ## Instalação
 
 ```bash
-git clone <este repositório> organiza
+git clone https://github.com/aleciomunizrafael/sistema-organiza-o.git organiza
 cd organiza
 npm install
-cp .env.example .env     # opcional: ajuste porta, senha, fuso
+cp .env.example .env     # opcional: ajuste porta, senha, fuso (no Windows: copy .env.example .env)
 npm start
 ```
 
+Use o `git clone`, não o "Download ZIP" do GitHub: sem a pasta `.git` o comando de atualização abaixo não funciona.
+
 Abra `http://localhost:3000`. Em outro aparelho da mesma rede, use o IP da máquina, por exemplo `http://192.168.0.10:3000`.
+
+### Atualizando
+
+Com o serviço parado (`pm2 stop organiza` ou `Ctrl+C`):
+
+```bash
+git pull
+npm install
+```
+
+e inicie de novo. A pasta `data/` (banco e sessão do WhatsApp) e o arquivo `.env` não são tocados pela atualização; o banco recebe as mudanças de estrutura sozinho na primeira execução. No navegador, recarregue com `Ctrl+F5` para pegar a interface nova.
 
 Para rodar os testes:
 
@@ -74,17 +87,44 @@ Limites:
 
 ### Windows (servidor do trabalho)
 
+**Opção recomendada: serviço do Windows com o NSSM.** Sobe junto com o Windows mesmo sem ninguém fazer login na máquina, que é o cenário de um servidor reiniciado.
+
+1. Baixe o [NSSM](https://nssm.cc/download), extraia e coloque o `nssm.exe` (pasta `win64`) em algum lugar fixo, por exemplo `C:\nssm\nssm.exe`.
+2. Em um PowerShell **como administrador**:
+
+```powershell
+C:\nssm\nssm.exe install Organiza "C:\Program Files\nodejs\node.exe" "--disable-warning=ExperimentalWarning src\index.js"
+C:\nssm\nssm.exe set Organiza AppDirectory "C:\caminho\para\organiza"
+C:\nssm\nssm.exe set Organiza AppStdout "C:\caminho\para\organiza\logs\organiza.log"
+C:\nssm\nssm.exe set Organiza AppStderr "C:\caminho\para\organiza\logs\organiza.log"
+C:\nssm\nssm.exe set Organiza AppRotateFiles 1
+C:\nssm\nssm.exe set Organiza AppRotateBytes 10485760
+C:\nssm\nssm.exe set Organiza AppRestartDelay 5000
+C:\nssm\nssm.exe start Organiza
+```
+
+Confira o caminho do `node.exe` com `where node`. Para parar, atualizar e religar: `nssm stop Organiza`, depois `git pull` e `npm install`, depois `nssm start Organiza`.
+
+**Opção alternativa: pm2.** Mais simples, mas o `pm2-windows-startup` só inicia o Organiza quando o seu usuário faz login no Windows. Se o servidor reiniciar e ficar na tela de login, o bot fica parado até alguém entrar.
+
 ```powershell
 npm install -g pm2 pm2-windows-startup
 pm2-startup install
 cd C:\caminho\para\organiza
 pm2 start ecosystem.config.cjs
 pm2 save
+pm2 install pm2-logrotate    # evita que os logs cresçam sem limite
 ```
 
-Comandos úteis: `pm2 status`, `pm2 logs organiza`, `pm2 restart organiza`.
+Comandos úteis: `pm2 status`, `pm2 logs organiza`, `pm2 restart organiza`. Os logs do pm2 ficam em `logs/`.
 
-Alternativa sem pm2: registrar como serviço do Windows com o [NSSM](https://nssm.cc/), apontando para `node` com os argumentos `--disable-warning=ExperimentalWarning src/index.js` e a pasta do projeto como diretório de trabalho.
+**Liberar a porta no firewall do Windows.** Sem isso o celular não alcança o servidor. Em um PowerShell como administrador:
+
+```powershell
+netsh advfirewall firewall add rule name="Organiza" dir=in action=allow protocol=TCP localport=3000
+```
+
+**IP fixo.** O endereço que você salva no celular é o IP do servidor. Se o roteador distribuir IPs automaticamente (DHCP), esse IP pode mudar e o atalho para de funcionar. Peça à TI para reservar o IP do servidor no roteador, ou use o nome da máquina (`http://NOME-DO-SERVIDOR:3000`) quando a rede resolver nomes.
 
 ### Linux
 
@@ -93,6 +133,7 @@ npm install -g pm2
 pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup   # execute o comando que ele imprimir
+pm2 install pm2-logrotate
 ```
 
 ## Instalar como app no celular
@@ -109,7 +150,9 @@ Tudo fica na pasta `data/`:
 - `organiza.db` é o banco com as tarefas e configurações.
 - `wa-auth/` é a sessão do WhatsApp. Trate como senha: quem tiver essa pasta tem acesso ao seu WhatsApp.
 
-Copiar a pasta inteira com o serviço parado é suficiente para restaurar em outra máquina.
+Copiar a pasta inteira **com o serviço parado** é suficiente para restaurar em outra máquina. Com o serviço rodando, o banco usa arquivos auxiliares (`organiza.db-wal` e `organiza.db-shm`) e a cópia pode sair inconsistente.
+
+Nunca use a mesma pasta `wa-auth/` em duas máquinas ao mesmo tempo: o WhatsApp derruba uma conexão com a outra em sequência. Se isso acontecer, o bot avisa na interface ("sessão em uso por outra máquina") e fica parado até você desligar o outro e clicar em Reconectar.
 
 ## API
 
@@ -165,4 +208,4 @@ tests/                  testes (node --test)
 
 ## Observações sobre o WhatsApp
 
-A integração usa a biblioteca [Baileys](https://github.com/WhiskeySockets/Baileys), que se conecta como um WhatsApp Web. Não é uma API oficial. Para uso pessoal com baixo volume funciona bem, mas há risco teórico de bloqueio da conta e, quando o WhatsApp muda o protocolo, pode ser preciso atualizar a biblioteca (`npm update @whiskeysockets/baileys`). Por isso o bot é um módulo separado: se um dia precisar trocar a forma de captura, o resto do sistema continua igual.
+A integração usa a biblioteca [Baileys](https://github.com/WhiskeySockets/Baileys), que se conecta como um WhatsApp Web. Não é uma API oficial. Para uso pessoal com baixo volume funciona bem, mas há risco teórico de bloqueio da conta e, quando o WhatsApp muda o protocolo, pode ser preciso atualizar a biblioteca. A versão está fixada no `package.json`, então o comando é `npm install @whiskeysockets/baileys@latest` (e não `npm update`), seguido de reinício do serviço. Por isso o bot é um módulo separado: se um dia precisar trocar a forma de captura, o resto do sistema continua igual.
