@@ -187,45 +187,69 @@ h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spa
 }
 
 /* Bloco da semana (papel) */
-.week-nav { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 10px; }
+body.wide #app { max-width: none; padding: 0 clamp(16px, 3vw, 48px); }
+.week-layout { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
+@media (min-width: 900px) {
+  .week-layout { grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr); gap: 28px; }
+  .week-side { position: sticky; top: 60px; max-height: calc(100vh - 72px); overflow-y: auto; padding-bottom: 8px; }
+  body.wide .paper-main { min-height: calc(100vh - 160px); }
+  body.wide .fab { left: auto; right: 32px; transform: none; }
+}
+@media (min-width: 1500px) {
+  .week-layout { grid-template-columns: minmax(0, 3fr) minmax(360px, 1fr); }
+}
+.week-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
 .week-nav .icon-btn { font-size: 26px; line-height: 1; padding: 4px 12px; }
 .week-title { display: flex; align-items: center; gap: 10px; font-size: 16px; }
 .link.small { font-size: 14px; padding: 2px 8px; border: 1px solid var(--blue); border-radius: 999px; }
 .paper {
-  --paper: #fffdf5; --rule: #d9e3f0; --margin: #f2b8b5; --ink: #1f2a44; --pencil: #7a8394;
+  --paper: #fffdf5; --rule: #d9e3f0; --margin: #f2b8b5; --ink: #1f2a44; --pencil: #7a8394; --line: 34px;
   background: var(--paper); color: var(--ink);
   border-radius: 6px 6px 12px 12px; box-shadow: 0 2px 6px rgba(0, 0, 0, .12), 0 12px 24px rgba(0, 0, 0, .06);
-  position: relative; padding: 18px 14px 20px 44px; min-height: 60vh;
-  background-image: repeating-linear-gradient(transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
+  position: relative; padding: 18px 16px 20px 46px;
+  background-image: repeating-linear-gradient(transparent 0, transparent calc(var(--line) - 1px), var(--rule) calc(var(--line) - 1px), var(--rule) var(--line));
   background-attachment: local;
 }
-.paper::before { content: ''; position: absolute; top: 0; bottom: 0; left: 34px; width: 2px; background: var(--margin); border-radius: 2px; }
-.paper-holes { position: absolute; left: 10px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+.paper-main { min-height: 38vh; font-size: 17px; }
+.paper-week { --line: 32px; }
+.paper::before { content: ''; position: absolute; top: 0; bottom: 0; left: 36px; width: 2px; background: var(--margin); border-radius: 2px; }
+.paper-holes { position: absolute; left: 11px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
 .paper-holes i { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25); }
 @media (prefers-color-scheme: dark) {
   .paper { --paper: #2a2620; --rule: #3d3830; --margin: #8a4a46; --ink: #f1ebdc; --pencil: #a9a08f; }
 }
 .paper-section {
-  font-weight: 700; font-size: 15px; line-height: 32px; margin-top: 8px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 15px; line-height: var(--line); margin-top: 8px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px;
   border-bottom: 2px solid var(--ink); width: fit-content; padding-right: 8px;
 }
+.paper-main .paper-section { font-size: 20px; margin-top: 0; }
 .paper-section:first-child { margin-top: 0; }
 .paper-section.today { color: var(--blue); border-color: var(--blue); }
 .paper-section.past { color: var(--pencil); border-color: var(--pencil); }
 .paper-section.overdue { color: var(--red); border-color: var(--red); }
-.paper-section.undated { margin-top: 24px; }
+.paper-count { font-size: 13px; font-weight: 700; background: var(--ink); color: var(--paper); border-radius: 999px; padding: 0 9px; line-height: 20px; }
 .today-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; background: var(--blue); color: #fff; border-radius: 999px; padding: 1px 8px; line-height: 16px; }
 .paper-add { background: none; border: 1px dashed var(--pencil); color: var(--pencil); border-radius: 50%; width: 22px; height: 22px; line-height: 1; padding: 0; font-size: 16px; }
 .paper-add:hover, .paper-add:active { color: var(--blue); border-color: var(--blue); }
-.paper-empty { color: var(--pencil); line-height: 32px; padding-left: 34px; font-size: 14px; }
-.paper-item { display: flex; align-items: flex-start; gap: 10px; line-height: 32px; min-height: 32px; }
-.paper-item .tick { margin-top: 4px; }
-.paper-main { flex: 1; min-width: 0; cursor: pointer; display: flex; flex-wrap: wrap; column-gap: 10px; align-items: baseline; }
+.paper-empty { color: var(--pencil); line-height: var(--line); padding-left: 34px; font-size: 14px; }
+.paper-item { display: flex; align-items: flex-start; gap: 10px; line-height: var(--line); min-height: var(--line); }
+.paper-item .tick { margin-top: calc((var(--line) - 24px) / 2); }
+.paper-main .paper-item { gap: 12px; }
+.paper-main:hover .paper-item:hover { background: rgba(0, 122, 255, .05); }
+.paper-main { --tick: 26px; }
+.paper-main .tick { width: var(--tick); height: var(--tick); }
+.paper-main .paper-item .tick { margin-top: calc((var(--line) - var(--tick)) / 2); }
+.paper-main .paper-title { font-size: 17px; }
+.paper-main .paper-meta { font-size: 13px; }
+.tick.ghost { border-style: dashed; opacity: .5; }
+.paper-add-line { margin-top: 4px; }
+.paper-add-line input {
+  flex: 1; border: 0; background: transparent; font: inherit; color: var(--ink); line-height: var(--line); padding: 0; outline: none; min-width: 0;
+}
+.paper-add-line input::placeholder { color: var(--pencil); }
+.paper-content { flex: 1; min-width: 0; cursor: pointer; display: flex; flex-wrap: wrap; column-gap: 10px; align-items: baseline; }
 .paper-title { font-size: 16px; }
 .paper-meta { color: var(--pencil); font-size: 12.5px; }
 .paper-item.completed .paper-title { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--pencil); }
 .paper-item.virtual { opacity: .55; }
 .paper-item.virtual .tick { border-style: dashed; }
-@media (min-width: 860px) {
-  .paper { padding-left: 52px; }
-}

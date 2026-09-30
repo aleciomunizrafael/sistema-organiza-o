@@ -130,11 +130,10 @@ Formato da recorrência: `"daily"`, `"weekdays"`, `"weekly"`, `"biweekly"`, `"mo
 
 ## Bloco da semana
 
-Na tela inicial, toque em **Bloco da semana**. A tela mostra:
+Na tela inicial, toque em **Bloco da semana**. A tela usa a largura inteira e tem duas folhas:
 
-- **Atrasadas**, no topo, quando houver tarefas com prazo vencido em semanas anteriores.
-- **Segunda a domingo**, cada dia com as tarefas cujo prazo cai naquele dia, as agendadas para entrar naquele dia e as recorrências. Ocorrências futuras de recorrências aparecem em tom mais claro, como previsão, e entram na lista de verdade quando o dia chega. Tarefas concluídas ficam riscadas no dia.
-- **Sem data**, embaixo, com todas as tarefas abertas que não têm prazo. Elas aparecem em qualquer semana.
+- **Folha principal, "Sem data"**: todas as tarefas abertas que não têm prazo, que são a maioria das demandas. Elas aparecem em qualquer semana. No fim da folha há uma linha para anotar uma nova demanda direto ali (digite e pressione Enter; datas escritas no texto são interpretadas).
+- **Folha da semana**, ao lado (ou abaixo, no celular): **Atrasadas** no topo, quando houver prazo vencido de semanas anteriores, e depois **segunda a domingo**, cada dia com as tarefas cujo prazo cai naquele dia, as agendadas para entrar naquele dia e as recorrências. Ocorrências futuras de recorrências aparecem em tom mais claro, como previsão, e entram na lista de verdade quando o dia chega. Tarefas concluídas ficam riscadas no dia.
 
 As setas trocam de semana e o botão "Hoje" volta para a atual. O "+" ao lado de cada dia cria uma tarefa já com aquele prazo. Marcar o círculo conclui a tarefa na hora.
 

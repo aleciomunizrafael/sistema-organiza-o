@@ -72,6 +72,7 @@
     $('#view-home').classList.toggle('hidden', view !== 'home');
     $('#view-settings').classList.toggle('hidden', view !== 'settings');
     $('#view-week').classList.toggle('hidden', view !== 'week');
+    document.body.classList.toggle('wide', view === 'week');
     $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates'].includes(view));
     $('#btn-home').style.visibility = view === 'home' ? 'hidden' : 'visible';
     $('#fab').classList.toggle('hidden', view === 'settings');
@@ -449,7 +450,9 @@
     const w = state.week;
     if (!w) return;
     const body = $('#week-body');
+    const main = $('#undated-body');
     body.innerHTML = '';
+    main.innerHTML = '';
 
     const [sy] = w.start.split('-');
     const [ey] = w.end.split('-');
@@ -457,22 +460,33 @@
     $('#week-label').textContent = `${fmtDayMonth(w.start)} – ${fmtDayMonth(w.end)}${sy !== ey || sy !== String(new Date().getFullYear()) ? ' ' + ey : ''}`;
     $('#week-today').classList.toggle('hidden', isCurrent);
 
-    const section = (title, cls = '') => {
+    const section = (parent, title, cls = '') => {
       const h = document.createElement('div');
       h.className = 'paper-section ' + cls;
       h.textContent = title;
-      body.appendChild(h);
+      parent.appendChild(h);
       return h;
     };
-    const emptyLine = (text = '—') => {
+    const emptyLine = (parent, text = '—') => {
       const e = document.createElement('div');
       e.className = 'paper-empty';
       e.textContent = text;
-      body.appendChild(e);
+      parent.appendChild(e);
     };
 
+    // ----- folha principal: sem data -----
+    const h = section(main, 'Sem data', 'undated');
+    const count = document.createElement('span');
+    count.className = 'paper-count';
+    count.textContent = w.undated.length;
+    h.appendChild(count);
+    if (!w.undated.length) emptyLine(main, 'nada pendente');
+    for (const t of w.undated) main.appendChild(renderPaperItem(t));
+    main.appendChild(renderAddLine());
+
+    // ----- folha da semana -----
     if (w.overdue.length) {
-      section('Atrasadas', 'overdue');
+      section(body, 'Atrasadas', 'overdue');
       for (const t of w.overdue) body.appendChild(renderPaperItem(t, { showDate: true }));
     }
 
@@ -480,27 +494,54 @@
       const [, , d] = day.date.split('-').map(Number);
       const wd = new Date(...day.date.split('-').map((x, i) => (i === 1 ? Number(x) - 1 : Number(x)))).getDay();
       const isToday = day.date === w.today;
-      const h = section(`${WEEKDAYS_LONG[wd]}, ${d}`, 'day' + (isToday ? ' today' : '') + (day.date < w.today ? ' past' : ''));
+      const hd = section(body, `${WEEKDAYS_LONG[wd]}, ${d}`, 'day' + (isToday ? ' today' : '') + (day.date < w.today ? ' past' : ''));
       if (isToday) {
         const tag = document.createElement('span');
         tag.className = 'today-tag';
         tag.textContent = 'hoje';
-        h.appendChild(tag);
+        hd.appendChild(tag);
       }
       const add = document.createElement('button');
       add.className = 'paper-add';
       add.title = 'Nova tarefa neste dia';
       add.textContent = '+';
       add.addEventListener('click', () => openEditor(null, { due_date: day.date }));
-      h.appendChild(add);
+      hd.appendChild(add);
 
-      if (!day.tasks.length) emptyLine();
+      if (!day.tasks.length) emptyLine(body);
       for (const t of day.tasks) body.appendChild(renderPaperItem(t));
     }
+  }
 
-    section('Sem data', 'undated');
-    if (!w.undated.length) emptyLine('nada pendente');
-    for (const t of w.undated) body.appendChild(renderPaperItem(t));
+  // Linha de escrita no fim da folha principal: digitar + Enter cria a demanda
+  function renderAddLine() {
+    const li = document.createElement('div');
+    li.className = 'paper-item paper-add-line';
+    const tick = document.createElement('span');
+    tick.className = 'tick ghost';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Nova demanda… (Enter para anotar)';
+    input.autocomplete = 'off';
+    input.addEventListener('keydown', async (e) => {
+      if (e.key !== 'Enter') return;
+      const text = input.value.trim();
+      if (!text) return;
+      input.disabled = true;
+      try {
+        const t = await api('POST', '/api/tasks', { text });
+        const extra = t.due_date ? ` (prazo ${fmtDate(t.due_date)})` : t.recurrence_label ? ` (${t.recurrence_label.toLowerCase()})` : '';
+        toast(`Anotado: ${t.title}${extra}`);
+        input.value = '';
+        await refresh();
+        $('#undated-body input')?.focus();
+      } catch (err) {
+        toast(err.message);
+        input.disabled = false;
+      }
+    });
+    li.append(tick, input);
+    return li;
   }
 
   function renderPaperItem(t, opts = {}) {
@@ -521,7 +562,7 @@
     }
 
     const main = document.createElement('div');
-    main.className = 'paper-main';
+    main.className = 'paper-content';
     const title = document.createElement('span');
     title.className = 'paper-title';
     if (t.priority) {

@@ -76,14 +76,22 @@
 
       <!-- Bloco da semana -->
       <section id="view-week" class="view hidden">
-        <div class="week-nav">
-          <button id="week-prev" class="icon-btn" aria-label="Semana anterior">‹</button>
-          <div class="week-title"><strong id="week-label"></strong><button id="week-today" class="link small">Hoje</button></div>
-          <button id="week-next" class="icon-btn" aria-label="Próxima semana">›</button>
-        </div>
-        <div class="paper">
-          <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="paper-body" id="week-body"></div>
+        <div class="week-layout">
+          <div class="paper paper-main">
+            <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="paper-body" id="undated-body"></div>
+          </div>
+          <div class="week-side">
+            <div class="week-nav">
+              <button id="week-prev" class="icon-btn" aria-label="Semana anterior">‹</button>
+              <div class="week-title"><strong id="week-label"></strong><button id="week-today" class="link small">Hoje</button></div>
+              <button id="week-next" class="icon-btn" aria-label="Próxima semana">›</button>
+            </div>
+            <div class="paper paper-week">
+              <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="paper-body" id="week-body"></div>
+            </div>
+          </div>
         </div>
       </section>
 
