@@ -34,16 +34,18 @@ test('recorrente cria apenas uma ocorrência aberta por vez', () => {
 });
 
 test('ao concluir a ocorrência, a próxima só surge quando chegar o dia', () => {
-  const tpl = createTask({ title: 'Diária', recurrence: 'daily', start_date: '2026-09-28' });
-  const [occ] = listTasks('all', '2026-09-30');
+  const today = todayYmd();
+  const tpl = createTask({ title: 'Diária', recurrence: 'daily', start_date: addDays(today, -2) });
+  const [occ] = listTasks('all', today);
+  assert.equal(occ.occurrence_date, today);
   updateTask(occ.id, { completed: true });
   // ainda hoje: nada novo (a próxima é amanhã)
-  assert.equal(listTasks('all', '2026-09-30').filter((t) => t.template_id === tpl.id).length, 0);
+  assert.equal(listTasks('all', today).filter((t) => t.template_id === tpl.id).length, 0);
   // amanhã: cria a nova ocorrência
-  ensureOccurrence(tpl.id, '2026-10-01');
-  const next = listTasks('all', '2026-10-01').filter((t) => t.template_id === tpl.id);
+  ensureOccurrence(tpl.id, addDays(today, 1));
+  const next = listTasks('all', addDays(today, 1)).filter((t) => t.template_id === tpl.id);
   assert.equal(next.length, 1);
-  assert.equal(next[0].occurrence_date, '2026-10-01');
+  assert.equal(next[0].occurrence_date, addDays(today, 1));
 });
 
 test('dias perdidos com o sistema desligado não acumulam', () => {
@@ -60,12 +62,15 @@ test('dias perdidos com o sistema desligado não acumulam', () => {
 });
 
 test('ocorrência não é recriada para a mesma data após concluída', () => {
-  const tpl = createTask({ title: 'Semanal', recurrence: { freq: 'weekly', interval: 1, weekdays: [3] }, start_date: '2026-09-30' });
-  const [occ] = listTasks('all', '2026-09-30');
+  const today = todayYmd();
+  const wd = new Date(today + 'T12:00:00').getDay();
+  const tpl = createTask({ title: 'Semanal', recurrence: { freq: 'weekly', interval: 1, weekdays: [wd] }, start_date: today });
+  const [occ] = listTasks('all', today);
+  assert.equal(occ.occurrence_date, today);
   updateTask(occ.id, { completed: true });
-  assert.equal(ensureOccurrence(tpl.id, '2026-09-30'), null);
-  assert.equal(ensureOccurrence(tpl.id, '2026-10-06'), null);
-  assert.equal(ensureOccurrence(tpl.id, '2026-10-07').occurrence_date, '2026-10-07');
+  assert.equal(ensureOccurrence(tpl.id, today), null);
+  assert.equal(ensureOccurrence(tpl.id, addDays(today, 6)), null);
+  assert.equal(ensureOccurrence(tpl.id, addDays(today, 7)).occurrence_date, addDays(today, 7));
 });
 
 test('editar o modelo propaga para a ocorrência aberta', () => {
