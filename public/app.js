@@ -139,7 +139,7 @@
 
     if (!state.tasks.length) {
       empty.textContent = {
-        today: 'Nada para hoje. 🎉', scheduled: 'Nenhuma tarefa agendada.', all: 'Nenhuma tarefa pendente.',
+        today: 'Nada para hoje.', scheduled: 'Nenhuma tarefa agendada.', all: 'Nenhuma tarefa pendente.',
         completed: 'Nenhuma tarefa concluída ainda.', templates: 'Nenhuma tarefa recorrente.',
         someday: 'Nada guardado para "algum dia".',
       }[state.view] || 'Nada aqui.';
@@ -178,7 +178,7 @@
     const check = document.createElement('button');
     check.className = 'tick' + (t.completed_at ? ' done' : '') + (t.priority ? ' high' : '');
     check.title = t.is_template ? (t.completed_at ? 'Reativar' : 'Pausar recorrência') : (t.completed_at ? 'Reabrir' : 'Concluir');
-    check.innerHTML = t.completed_at ? '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12.5 10 17l9-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : (t.is_template ? '🔁' : '');
+    check.innerHTML = t.completed_at ? '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12.5 10 17l9-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : (t.is_template ? '↻' : '');
     if (t.is_template) check.style.fontSize = '12px';
     check.addEventListener('click', (e) => { e.stopPropagation(); toggleComplete(t); });
 
@@ -208,17 +208,17 @@
     };
 
     if (t.is_template) {
-      add('🔁 ' + t.recurrence_label);
+      add('↻ ' + t.recurrence_label);
       if (t.completed_at) add('pausada');
       else if (t.next_date) add('próxima: ' + fmtDate(t.next_date));
     } else {
       if (t.due_date) {
         const cls = t.completed_at ? '' : t.due_date < state.today ? 'overdue' : t.due_date === state.today ? 'today' : '';
-        add('⏰ ' + fmtDate(t.due_date), cls);
+        add((cls === 'overdue' ? 'venceu ' : 'até ') + fmtDate(t.due_date), cls);
       }
       if (t.start_date && t.start_date > state.today) add('entra ' + fmtDate(t.start_date));
-      if (t.template_id) add('🔁 recorrente');
-      if (t.someday) add('💤 ' + (t.trigger_text ? 'quando ' + t.trigger_text.replace(/^quando\s+/i, '') : 'sem data'));
+      if (t.template_id) add('↻ recorrente');
+      if (t.someday) add(t.trigger_text ? 'quando ' + t.trigger_text.replace(/^quando\s+/i, '') : 'sem data');
       if (t.completed_at) add('concluída ' + fmtDateTime(t.completed_at));
     }
     if (t.source === 'whatsapp') add('WhatsApp' + (t.source_sender ? ' · ' + t.source_sender.replace(/\s*\(\d+\)$/, '') : ''), 'wa');
@@ -252,8 +252,8 @@
       try {
         const p = await api('POST', '/api/parse', { text });
         const parts = [];
-        if (p.recurrence) parts.push('🔁 ' + describeRule(p.recurrence) + (p.date ? ' a partir de ' + fmtDate(p.date) : ''));
-        else if (p.date) parts.push('⏰ prazo ' + fmtDate(p.date));
+        if (p.recurrence) parts.push('↻ ' + describeRule(p.recurrence) + (p.date && !p.recurrence.until ? ' a partir de ' + fmtDate(p.date) : ''));
+        else if (p.date) parts.push('prazo ' + fmtDate(p.date));
         if (p.recurrence?.until) parts.push('até ' + fmtDate(p.recurrence.until));
         $('#quick-preview').textContent = parts.length ? `"${p.title || text}" — ${parts.join(', ')}` : '';
       } catch { /* ignore */ }
@@ -664,11 +664,11 @@
     main.appendChild(title);
 
     const meta = [];
-    if (opts.showDate && t.due_date) meta.push('⏰ ' + fmtDate(t.due_date));
+    if (opts.showDate && t.due_date) meta.push('venceu ' + fmtDate(t.due_date));
     if (t.kind === 'scheduled') meta.push('entra na lista');
-    if (t.kind === 'projected' || t.template_id) meta.push('🔁' + (t.recurrence_label ? ' ' + t.recurrence_label.toLowerCase() : ''));
+    if (t.kind === 'projected' || t.template_id) meta.push('↻' + (t.recurrence_label ? ' ' + t.recurrence_label.toLowerCase() : ''));
     if (t.someday && t.trigger_text) meta.push(t.trigger_text);
-    else if (t.someday && t.kind === 'done') meta.push('💤 sem data');
+    else if (t.someday && t.kind === 'done') meta.push('sem data');
     if (t.source === 'whatsapp') meta.push('WhatsApp');
     if (t.notes) meta.push(t.notes.length > 60 ? t.notes.slice(0, 60) + '…' : t.notes);
     if (meta.length) {
@@ -720,7 +720,7 @@
       el.append(span, btn);
       $('#notices').prepend(el);
     }
-    el.firstChild.textContent = '📵 ' + text;
+    el.firstChild.textContent = text;
   }
 
   // ---------- avisos ----------
@@ -732,7 +732,7 @@
       const el = document.createElement('div');
       el.className = 'notice';
       const span = document.createElement('span');
-      span.textContent = (n.kind === 'offline' ? '⚠️ ' : 'ℹ️ ') + n.message;
+      span.textContent = n.message;
       const btn = document.createElement('button');
       btn.textContent = 'OK';
       btn.addEventListener('click', async () => { await api('POST', `/api/notices/${n.id}/dismiss`); el.remove(); });

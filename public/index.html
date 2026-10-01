@@ -5,14 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Organiza</title>
   <meta name="description" content="Tarefas e demandas pessoais">
-  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#efe9dd" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Organiza">
   <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -34,33 +37,33 @@
       <section id="view-home" class="view">
         <div class="cards">
           <button class="card c-today" data-view="today">
-            <div class="card-top"><span class="card-icon">📅</span><span class="card-count" id="count-today">0</span></div>
+            <div class="card-top"><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg></span><span class="card-count" id="count-today">0</span></div>
             <div class="card-label">Hoje</div>
           </button>
           <button class="card c-scheduled" data-view="scheduled">
-            <div class="card-top"><span class="card-icon">🗓️</span><span class="card-count" id="count-scheduled">0</span></div>
+            <div class="card-top"><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="8" cy="15" r="1" fill="currentColor"/><circle cx="12" cy="15" r="1" fill="currentColor"/><circle cx="16" cy="15" r="1" fill="currentColor"/></svg></span><span class="card-count" id="count-scheduled">0</span></div>
             <div class="card-label">Agendadas</div>
           </button>
           <button class="card c-all" data-view="all">
-            <div class="card-top"><span class="card-icon">📥</span><span class="card-count" id="count-all">0</span></div>
+            <div class="card-top"><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2.5-7h13L21 13"/><path d="M3 13v6h18v-6"/><path d="M3 13h5l1.5 2h5L16 13h5"/></svg></span><span class="card-count" id="count-all">0</span></div>
             <div class="card-label">Todas</div>
           </button>
           <button class="card c-done" data-view="completed">
-            <div class="card-top"><span class="card-icon">✅</span><span class="card-count" id="count-completed">0</span></div>
+            <div class="card-top"><span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 10"/></svg></span><span class="card-count" id="count-completed">0</span></div>
             <div class="card-label">Concluídas</div>
           </button>
         </div>
         <div class="list-group">
           <button class="row-link" data-view="week">
-            <span class="row-icon week">📝</span><span class="row-text">Bloco da semana</span>
+            <span class="row-icon week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/><path d="M4 7h2M4 12h2M4 17h2"/></svg></span><span class="row-text">Bloco da semana</span>
             <span class="chev">›</span>
           </button>
           <button class="row-link" data-view="someday">
-            <span class="row-icon someday">💤</span><span class="row-text">Sem data</span>
+            <span class="row-icon someday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15.5A8 8 0 0 1 8.5 4a8 8 0 1 0 11.5 11.5z"/><path d="M16 4h4l-4 4h4"/></svg></span><span class="row-text">Sem data</span>
             <span class="row-count" id="count-someday">0</span><span class="chev">›</span>
           </button>
           <button class="row-link" data-view="templates">
-            <span class="row-icon">🔁</span><span class="row-text">Recorrentes</span>
+            <span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span><span class="row-text">Recorrentes</span>
             <span class="row-count" id="count-templates">0</span><span class="chev">›</span>
           </button>
         </div>

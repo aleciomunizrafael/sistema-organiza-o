@@ -5,8 +5,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f2f2f7",
-  "theme_color": "#007aff",
+  "background_color": "#efe9dd",
+  "theme_color": "#a94424",
   "lang": "pt-BR",
   "shortcuts": [
     { "name": "Nova tarefa", "url": "/#new", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
