@@ -553,10 +553,6 @@
     cs.className = 'paper-count';
     cs.textContent = (w.someday || []).length;
     hs.appendChild(cs);
-    const hint = document.createElement('span');
-    hint.className = 'paper-hint';
-    hint.textContent = 'sem prazo e sem pressa';
-    hs.appendChild(hint);
     if (!(w.someday || []).length) emptyLine(some, 'nada guardado');
     else {
       const items = document.createElement('div');

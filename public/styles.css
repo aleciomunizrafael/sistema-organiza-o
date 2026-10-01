@@ -8,11 +8,11 @@
   color-scheme: light;
 
   /* superfícies */
-  --bg: #efe9dd;            /* mesa / linho */
-  --bg-deep: #e4ddcd;       /* furos, campos afundados */
-  --paper: #fbf8f1;         /* folha solta (cartões, painéis, listas) */
-  --paper-2: #fffdf7;       /* folha pautada (bloco) */
-  --field: #fffdf8;         /* campos de formulário */
+  --bg: #f8f6f1;            /* mesa / linho */
+  --bg-deep: #ece8df;       /* furos, campos afundados */
+  --paper: #ffffff;         /* folha solta (cartões, painéis, listas) */
+  --paper-2: #fffefa;       /* folha pautada (bloco) */
+  --field: #ffffff;         /* campos de formulário */
 
   /* tinta */
   --ink: #1b2a47;
@@ -21,10 +21,10 @@
   --pencil: #6b7285;
 
   /* traços */
-  --line: #e4ddce;          /* separadores */
-  --line-strong: #cfc6b3;
-  --rule: #d8dfea;          /* pauta azul-clara */
-  --margin: #e5a999;        /* linha de margem */
+  --line: #ebe7df;          /* separadores */
+  --line-strong: #d9d3c6;
+  --rule: #e1e7f0;          /* pauta azul-clara */
+  --margin: #ecb9ab;        /* linha de margem */
 
   /* acento terracota */
   --accent: #a94424;
@@ -34,8 +34,8 @@
   --accent-soft-ink: #86321a;
 
   /* mostarda (post-it "Sem data") */
-  --mustard: #f6e8b9;
-  --mustard-rule: #e6d493;
+  --mustard: #fbf1cc;
+  --mustard-rule: #ecdfa9;
   --mustard-ink: #4f3f10;
   --mustard-muted: #6f5c26;
   --mustard-tape: rgba(255, 255, 255, .55);
@@ -46,7 +46,7 @@
   --green: #2b7255;
   --green-soft: #dcebe3;
   --amber: #c98a17;
-  --chip: #f0ebe0;
+  --chip: #f3f0e9;
   --hover: rgba(27, 42, 71, .05);
   --hover-strong: rgba(27, 42, 71, .09);
   --focus-ring: rgba(27, 42, 71, .18);
