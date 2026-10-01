@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Entrar · Organiza</title>
+  <meta name="theme-color" content="#f8f6f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <script>try{var t=localStorage.getItem('organiza-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="login-page">
+  <main class="login">
+    <h1 class="login-brand">Organiza</h1>
+    <form id="login-form" class="panel form" autocomplete="on">
+      <label>Usuário
+        <input id="l-user" type="text" value="admin" autocomplete="username" required>
+      </label>
+      <label>Senha
+        <input id="l-pass" type="password" autocomplete="current-password" required autofocus>
+      </label>
+      <div id="l-error" class="login-error hidden"></div>
+      <button type="submit" class="primary" id="l-submit">Entrar</button>
+      <p class="hint">A sessão fica salva neste aparelho por 180 dias.</p>
+    </form>
+  </main>
+  <script>
+    (function () {
+      var form = document.getElementById('login-form');
+      var err = document.getElementById('l-error');
+      var btn = document.getElementById('l-submit');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        err.classList.add('hidden');
+        btn.disabled = true;
+        try {
+          var res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: document.getElementById('l-user').value, password: document.getElementById('l-pass').value }),
+          });
+          var data = await res.json().catch(function () { return {}; });
+          if (!res.ok) throw new Error(data.error || 'Não foi possível entrar');
+          var dest = new URLSearchParams(location.search).get('next') || '/';
+          location.replace(dest.startsWith('/') ? dest : '/');
+        } catch (e2) {
+          err.textContent = e2.message;
+          err.classList.remove('hidden');
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

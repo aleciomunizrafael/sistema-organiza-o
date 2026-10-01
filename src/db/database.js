@@ -36,6 +36,13 @@ CREATE TABLE IF NOT EXISTS skipped_occurrences (
   PRIMARY KEY (template_id, occurrence_date)
 );
 
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_agent TEXT,
+  created_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT

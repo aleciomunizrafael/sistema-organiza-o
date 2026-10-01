@@ -23,6 +23,10 @@
     });
     if (res.status === 204) return null;
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && data.login) {
+      location.replace('/login?next=' + encodeURIComponent(location.pathname + location.hash));
+      throw new Error('Faça login para continuar');
+    }
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
     return data;
   }
@@ -744,6 +748,14 @@
     try { if (t === 'light' || t === 'dark') localStorage.setItem('organiza-theme', t); else localStorage.removeItem('organiza-theme'); } catch { /* ignore */ }
   }
   $('#s-theme').addEventListener('change', () => applyTheme($('#s-theme').value));
+
+  // ---------- sessão ----------
+  api('GET', '/api/auth/status').then((a) => { $('#s-logout-wrap').classList.toggle('hidden', !a.enabled); }).catch(() => {});
+  $('#s-logout').addEventListener('click', async () => {
+    if (!confirm('Sair deste aparelho? Será preciso digitar a senha de novo.')) return;
+    try { await api('POST', '/api/logout'); } catch { /* ignore */ }
+    location.replace('/login');
+  });
 
   // ---------- configurações ----------
   async function loadSettings() {

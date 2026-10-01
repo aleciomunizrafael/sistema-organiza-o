@@ -1,11 +1,11 @@
 import { config } from './config.js';
-import { timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import pino from 'pino';
 import { getDb } from './db/database.js';
 import { apiRouter } from './routes/api.js';
 import { startScheduler } from './services/scheduler.js';
 import * as wa from './whatsapp/client.js';
+import { authMiddleware, authEnabled, checkPassword, createSession, destroySession, cookieHeader, tooManyFails, recordFail, clearFails } from './auth.js';
 
 const log = pino({ level: config.logLevel, transport: { target: 'pino/file', options: { destination: 1 } } });
 
@@ -15,20 +15,7 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '200kb' }));
 
-// Autenticação simples opcional (APP_PASSWORD no .env)
-if (config.appPassword) {
-  app.use((req, res, next) => {
-    const h = req.headers.authorization || '';
-    if (h.startsWith('Basic ')) {
-      const [user, ...rest] = Buffer.from(h.slice(6), 'base64').toString().split(':');
-      const given = Buffer.from(`${user}:${rest.join(':')}`);
-      const expected = Buffer.from(`${config.appUser}:${config.appPassword}`);
-      if (given.length === expected.length && timingSafeEqual(given, expected)) return next();
-    }
-    res.set('WWW-Authenticate', 'Basic realm="Organiza", charset="UTF-8"');
-    res.status(401).send('Autenticação necessária');
-  });
-}
+app.set('trust proxy', 'loopback'); // atrás do Caddy: req.secure e req.ip corretos
 
 // Bloqueia POST/PUT/PATCH/DELETE vindos de outra origem (CSRF). Requisições sem Origin (scripts, curl) passam.
 app.use('/api', (req, res, next) => {
@@ -43,6 +30,31 @@ app.use('/api', (req, res, next) => {
   }
   next();
 });
+
+
+// Autenticação por sessão (APP_PASSWORD no .env). Sem senha configurada, tudo é aberto.
+app.get('/api/auth/status', (_req, res) => res.json({ enabled: authEnabled() }));
+app.post('/api/login', (req, res) => {
+  if (!authEnabled()) return res.json({ ok: true });
+  const ip = req.ip || 'desconhecido';
+  if (tooManyFails(ip)) return res.status(429).json({ error: 'Muitas tentativas. Aguarde 15 minutos.' });
+  const { user, password } = req.body || {};
+  if (!checkPassword(String(user || ''), String(password || ''))) {
+    recordFail(ip);
+    log.warn({ ip }, 'tentativa de login inválida');
+    return res.status(401).json({ error: 'Usuário ou senha incorretos' });
+  }
+  clearFails(ip);
+  const token = createSession(req);
+  res.set('Set-Cookie', cookieHeader(req, token));
+  res.json({ ok: true });
+});
+app.post('/api/logout', (req, res) => {
+  destroySession(req);
+  res.set('Set-Cookie', cookieHeader(req, '', { clear: true }));
+  res.json({ ok: true });
+});
+app.use(authMiddleware);
 
 app.use('/api', apiRouter());
 app.use(express.static(config.publicDir, { extensions: ['html'] }));

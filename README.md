@@ -183,6 +183,12 @@ Abra o endereço HTTPS, entre com a senha e instale como app (Safari: Compartilh
 
 O celular precisa alcançar o servidor pela rede (mesma rede Wi-Fi, VPN da empresa ou um túnel como Tailscale). Se a interface ficar acessível para outras pessoas, defina `APP_PASSWORD` no `.env`.
 
+## Senha e login
+
+Com `APP_PASSWORD` definido no `.env`, o sistema mostra uma tela de login própria. Depois de entrar, a sessão fica salva naquele aparelho por 180 dias (cookie), então o app instalado no celular abre direto. Para encerrar a sessão de um aparelho: Configurações → Conta → Sair. Dez senhas erradas seguidas do mesmo endereço bloqueiam novas tentativas por 15 minutos.
+
+Scripts e atalhos continuam podendo usar autenticação básica (`-u admin:senha` no curl).
+
 ## Backup
 
 Tudo fica na pasta `data/`:
