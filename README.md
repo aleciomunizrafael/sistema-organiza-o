@@ -136,6 +136,46 @@ pm2 startup   # execute o comando que ele imprimir
 pm2 install pm2-logrotate
 ```
 
+## Hospedando em um VPS (acesso de qualquer lugar)
+
+Para usar de qualquer aparelho, em qualquer rede, o sistema pode rodar em um servidor alugado na nuvem. O código e o banco são os mesmos; muda só onde rodam. A pasta `deploy/` tem tudo pronto.
+
+### O que você precisa
+
+1. **Um VPS Ubuntu 22.04 ou 24.04** com 1 GB de RAM já serve. Opções baratas: Hetzner (CX22, cerca de 4 euros por mês), DigitalOcean (6 dólares), ou a camada gratuita da Oracle Cloud. Na criação, escolha autenticação por chave SSH ou anote a senha de root.
+2. **Um endereço (domínio) apontando para o IP do VPS.** Sem ele não há HTTPS, e sem HTTPS o app não instala no celular. Se não tiver um domínio, crie um grátis em [duckdns.org](https://www.duckdns.org): escolha um nome (ex.: `meuorganiza.duckdns.org`) e cole o IP do VPS. Leva um minuto.
+3. **Uma senha forte** para o app. Na internet a senha é obrigatória.
+
+### Instalação em um comando
+
+Conecte no VPS (`ssh root@IP`) e rode:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aleciomunizrafael/sistema-organiza-o/main/deploy/install-vps.sh -o install.sh
+bash install.sh meuorganiza.duckdns.org "minha senha forte"
+```
+
+Em uns cinco minutos o script instala Node, Caddy (que cuida do HTTPS sozinho), cria o serviço que religa junto com a máquina, configura o firewall e agenda um backup diário. Ao final ele mostra o endereço: `https://meuorganiza.duckdns.org`, usuário `admin` e a senha informada.
+
+Depois, no navegador: Configurações → Reconectar / gerar QR → escaneie com o WhatsApp → escolha o grupo → Salvar. Se você já usava o sistema no notebook, desconecte a sessão lá antes (ou copie a pasta `data/` para `/opt/organiza/data` no VPS com o serviço parado).
+
+### No dia a dia
+
+| Para | Comando no VPS |
+|---|---|
+| Ver se está rodando | `systemctl status organiza` |
+| Ver o log ao vivo | `journalctl -u organiza -f` |
+| Atualizar o sistema | `bash /opt/organiza/deploy/update.sh` |
+| Reiniciar | `systemctl restart organiza` |
+| Backups (últimos 14 dias) | `ls /opt/organiza/backups` |
+| Baixar um backup para o seu PC | `scp root@IP:/opt/organiza/backups/organiza-DATA.tar.gz .` |
+
+O serviço roda com um usuário sem privilégios, o app só escuta localmente (o Caddy faz a ponte com HTTPS) e o firewall libera apenas SSH, 80 e 443.
+
+### Celular
+
+Abra o endereço HTTPS, entre com a senha e instale como app (Safari: Compartilhar → Adicionar à Tela de Início; Chrome: menu → Instalar app). Funciona no 4G, em casa, em qualquer lugar.
+
 ## Instalar como app no celular
 
 - **iPhone:** abra o endereço no Safari → botão Compartilhar → **Adicionar à Tela de Início**.

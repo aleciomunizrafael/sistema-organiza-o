@@ -1,0 +1,6 @@
+# Caddy: HTTPS automático (Let's Encrypt) na frente do Organiza.
+# O domínio é substituído pelo deploy/install-vps.sh.
+__DOMAIN__ {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3000
+}
