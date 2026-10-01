@@ -44,11 +44,46 @@ fi
 node -v
 
 echo "==> Caddy (HTTPS automático)"
-if ! command -v caddy >/dev/null; then
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+install_caddy_apt() {
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg || return 1
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list || return 1
   apt-get update -y && apt-get install -y caddy
+}
+install_caddy_binary() {
+  # Alternativa: binário oficial + serviço systemd
+  local arch; arch=$(dpkg --print-architecture)
+  curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${arch}" -o /usr/bin/caddy || return 1
+  chmod +x /usr/bin/caddy
+  groupadd --system caddy 2>/dev/null || true
+  id -u caddy >/dev/null 2>&1 || useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy
+  mkdir -p /etc/caddy
+  cat > /etc/systemd/system/caddy.service <<'UNIT'
+[Unit]
+Description=Caddy
+After=network.target network-online.target
+Requires=network-online.target
+[Service]
+User=caddy
+Group=caddy
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable caddy >/dev/null
+}
+if ! command -v caddy >/dev/null; then
+  install_caddy_apt || { echo "repositório do Caddy indisponível; usando o binário oficial"; rm -f /etc/apt/sources.list.d/caddy-stable.list; install_caddy_binary; }
 fi
+command -v caddy >/dev/null || { echo "ERRO: não foi possível instalar o Caddy"; exit 1; }
+mkdir -p /etc/caddy
+caddy version
 
 echo "==> Usuário de serviço e código"
 id -u organiza >/dev/null 2>&1 || useradd --system --home "$APP" --shell /usr/sbin/nologin organiza
@@ -85,7 +120,10 @@ systemctl --no-pager --lines=5 status organiza || true
 
 echo "==> Caddy para $DOMAIN"
 sed "s/__DOMAIN__/$DOMAIN/" deploy/Caddyfile > /etc/caddy/Caddyfile
-systemctl reload caddy || systemctl restart caddy
+systemctl enable caddy >/dev/null 2>&1 || true
+systemctl restart caddy
+sleep 2
+systemctl --no-pager --lines=3 status caddy || true
 
 echo "==> Firewall"
 ufw allow OpenSSH >/dev/null
