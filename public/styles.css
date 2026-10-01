@@ -71,7 +71,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+:root:not([data-theme="light"]) {
     color-scheme: dark;
 
     --bg: #16130f;
@@ -126,6 +126,61 @@
     --edge: inset 0 0 0 1px rgba(236, 227, 209, .07);
   }
 }
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #16130f;
+    --bg-deep: #0f0d0a;
+    --paper: #221e18;
+    --paper-2: #26211a;
+    --field: #1c1813;
+
+    --ink: #ece3d1;
+    --ink-2: #cdc3ae;
+    --muted: #a19683;
+    --pencil: #9a8f7c;
+
+    --line: rgba(236, 227, 209, .10);
+    --line-strong: rgba(236, 227, 209, .22);
+    --rule: rgba(236, 227, 209, .16);
+    --margin: rgba(227, 148, 112, .45);
+
+    --accent: #e39470;
+    --accent-hover: #edaa8b;
+    --accent-ink: #16130f;
+    --accent-soft: rgba(227, 148, 112, .16);
+    --accent-soft-ink: #f0b195;
+
+    --mustard: #332b14;
+    --mustard-rule: rgba(246, 232, 185, .18);
+    --mustard-ink: #e7d7a0;
+    --mustard-muted: #b3a675;
+    --mustard-tape: rgba(255, 245, 210, .22);
+
+    --navy-soft: rgba(150, 175, 230, .16);
+    --navy-soft-ink: #b9c8ea;
+    --green: #7cc39a;
+    --green-soft: rgba(124, 195, 154, .14);
+    --amber: #e0b04a;
+    --chip: rgba(236, 227, 209, .08);
+    --hover: rgba(236, 227, 209, .05);
+    --hover-strong: rgba(236, 227, 209, .10);
+    --focus-ring: rgba(227, 148, 112, .35);
+    --backdrop: rgba(0, 0, 0, .6);
+
+    --primary: #ece3d1;
+    --primary-hover: #fff8e8;
+    --primary-ink: #16130f;
+    --tick-border: #8f8574;
+    --tick-done: #c9663d;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-md: 0 1px 2px rgba(0, 0, 0, .45), 0 12px 28px -12px rgba(0, 0, 0, .7);
+    --shadow-lg: 0 2px 6px rgba(0, 0, 0, .5), 0 30px 60px -20px rgba(0, 0, 0, .8);
+    --shadow-paper: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 34px -16px rgba(0, 0, 0, .75);
+    --edge: inset 0 0 0 1px rgba(236, 227, 209, .07);
+  }
+
 
 /* --------------------------------------------------------------------------
    Base
@@ -244,7 +299,11 @@ body:has(#view-home:not(.hidden)) .topbar h1::after {
 .c-scheduled { --c: #4b64a3; --c-soft: var(--navy-soft); }
 .c-all { --c: var(--ink); --c-soft: var(--chip); }
 .c-done { --c: var(--green); --c-soft: var(--green-soft); }
-@media (prefers-color-scheme: dark) { .c-scheduled { --c: #93a9dc; } }
+@media (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) .c-scheduled { --c: #93a9dc; }
+}
+:root[data-theme="dark"] .c-scheduled { --c: #93a9dc; }
+
 
 .list-group {
   background: var(--paper); border-radius: var(--radius); margin-top: 14px;
@@ -545,8 +604,10 @@ body.wide #app { max-width: 1560px; padding: 0 clamp(16px, 3vw, 40px); }
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, .22), inset 0 0 0 1px rgba(0, 0, 0, .05), 0 1px 0 rgba(255, 255, 255, .5);
 }
 @media (prefers-color-scheme: dark) {
-  .paper-holes i { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .8), 0 1px 0 rgba(255, 255, 255, .05); }
+:root:not([data-theme="light"]) .paper-holes i { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .8), 0 1px 0 rgba(255, 255, 255, .05); }
 }
+:root[data-theme="dark"] .paper-holes i { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .8), 0 1px 0 rgba(255, 255, 255, .05); }
+
 .paper-main { min-height: 40vh; }
 .paper-week { --lh: 34px; }
 
@@ -564,7 +625,11 @@ body.wide #app { max-width: 1560px; padding: 0 clamp(16px, 3vw, 40px); }
   box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
   backdrop-filter: blur(1px);
 }
-@media (prefers-color-scheme: dark) { .paper-someday::after { --tape-edge: rgba(255, 245, 210, .28); box-shadow: none; } }
+@media (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) .paper-someday::after { --tape-edge: rgba(255, 245, 210, .28); box-shadow: none; }
+}
+:root[data-theme="dark"] .paper-someday::after { --tape-edge: rgba(255, 245, 210, .28); box-shadow: none; }
+
 
 /* Cabeçalhos de seção (A fazer, Atrasadas, dias) */
 .paper-section {
@@ -673,3 +738,7 @@ body.wide #app { max-width: 1560px; padding: 0 clamp(16px, 3vw, 40px); }
 .c-done .card-icon { color: var(--green); }
 .row-icon.week { color: var(--accent); }
 .row-icon.someday { color: var(--mustard-ink, var(--ink)); }
+
+/* Tema escolhido manualmente (Configurações) */
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }

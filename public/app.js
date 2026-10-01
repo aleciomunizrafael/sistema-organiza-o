@@ -737,8 +737,19 @@
     }
   }
 
+  // ---------- tema ----------
+  function applyTheme(t) {
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+    try { if (t === 'light' || t === 'dark') localStorage.setItem('organiza-theme', t); else localStorage.removeItem('organiza-theme'); } catch { /* ignore */ }
+  }
+  $('#s-theme').addEventListener('change', () => applyTheme($('#s-theme').value));
+
   // ---------- configurações ----------
   async function loadSettings() {
+    let theme = 'auto';
+    try { theme = localStorage.getItem('organiza-theme') || 'auto'; } catch { /* ignore */ }
+    $('#s-theme').value = theme;
     const { settings } = await api('GET', '/api/settings');
     state.settings = settings;
     $('#s-marker').value = settings.wa_marker;
