@@ -33,6 +33,7 @@ if [ "$(free -m | awk '/^Mem:/{print $2}')" -lt 1500 ] && [ "$(swapon --show | w
 fi
 
 echo "==> Pacotes básicos"
+rm -f /etc/apt/sources.list.d/caddy-stable.list /usr/share/keyrings/caddy-stable-archive-keyring.gpg  # repositório do Caddy com chave expirada
 apt-get update -y
 apt-get install -y curl git sqlite3 ufw ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https
 
@@ -78,8 +79,9 @@ UNIT
   systemctl daemon-reload
   systemctl enable caddy >/dev/null
 }
+# O repositório apt do Caddy teve problemas de chave; o binário oficial é mais confiável.
 if ! command -v caddy >/dev/null; then
-  install_caddy_apt || { echo "repositório do Caddy indisponível; usando o binário oficial"; rm -f /etc/apt/sources.list.d/caddy-stable.list; install_caddy_binary; }
+  install_caddy_binary || { echo "binário indisponível; tentando o repositório apt"; install_caddy_apt; }
 fi
 command -v caddy >/dev/null || { echo "ERRO: não foi possível instalar o Caddy"; exit 1; }
 mkdir -p /etc/caddy
