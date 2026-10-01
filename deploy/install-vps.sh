@@ -25,6 +25,13 @@ if [ -z "$DOMAIN" ] || [ -z "$PASSWORD" ]; then
 fi
 if [ "$(id -u)" -ne 0 ]; then echo "Execute como root (sudo bash install.sh ...)"; exit 1; fi
 
+echo "==> Memória de troca (swap) em servidores pequenos"
+if [ "$(free -m | awk '/^Mem:/{print $2}')" -lt 1500 ] && [ "$(swapon --show | wc -l)" -eq 0 ]; then
+  fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  echo "swap de 1 GB criado"
+fi
+
 echo "==> Pacotes básicos"
 apt-get update -y
 apt-get install -y curl git sqlite3 ufw ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https
