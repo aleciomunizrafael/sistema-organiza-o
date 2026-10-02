@@ -5,6 +5,8 @@ import { today, mondayOf, isValidYmd } from '../services/dates.js';
 import { extractDate, extractRecurrence } from '../services/dateParser.js';
 import { parseDemand } from '../whatsapp/parser.js';
 import * as wa from '../whatsapp/client.js';
+import { vapidKeys, saveSubscription, removeSubscription, countSubscriptions, notify } from '../services/notify.js';
+import { buildDigest } from '../services/scheduler.js';
 
 export function apiRouter() {
   const r = Router();
@@ -82,6 +84,20 @@ export function apiRouter() {
   // ---------- avisos ----------
   r.get('/notices', (_req, res) => res.json(listNotices()));
   r.post('/notices/:id/dismiss', (req, res) => { dismissNotice(Number(req.params.id)); res.status(204).end(); });
+
+  // ---------- notificações ----------
+  r.get('/push/key', (_req, res) => res.json({ publicKey: vapidKeys().publicKey }));
+  r.get('/push/status', (_req, res) => res.json({ devices: countSubscriptions() }));
+  r.post('/push/subscribe', (req, res) => {
+    try { saveSubscription(req.body, req.headers['user-agent']); res.status(201).json({ ok: true }); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  r.post('/push/unsubscribe', (req, res) => { if (req.body?.endpoint) removeSubscription(String(req.body.endpoint)); res.json({ ok: true }); });
+  r.post('/notify/test', async (_req, res) => {
+    const result = await notify({ title: 'Organiza', body: 'Notificação de teste funcionando.', text: '🔔 Teste de notificação do Organiza funcionando.' });
+    res.json(result);
+  });
+  r.post('/notify/digest', async (_req, res) => res.json(await notify(buildDigest())));
 
   // ---------- whatsapp ----------
   r.get('/whatsapp/status', (_req, res) => res.json(wa.getStatus()));

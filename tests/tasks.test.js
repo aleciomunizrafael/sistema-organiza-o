@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { useMemoryDb } from '../src/db/database.js';
 import { today as todayYmd, addDays } from '../src/services/dates.js';
-import { createTask, updateTask, listTasks, ensureOccurrence, materializeAll, counts, deleteTask, getTask } from '../src/services/tasks.js';
+import { createTask, updateTask, listTasks, ensureOccurrence, materializeAll, counts, deleteTask, getTask, dueReminders, markReminded } from '../src/services/tasks.js';
 
 beforeEach(() => useMemoryDb());
 
@@ -221,4 +221,20 @@ test('booleanos vindos como texto e título não textual', () => {
   assert.ok(getTask(t.id).completed_at);
   assert.throws(() => createTask({ title: { a: 1 } }), /Título/);
   assert.throws(() => createTask({ title: 'ok', notes: ['x'] }), /Texto inválido/);
+});
+
+test('lembrete: validação, vencimento e reenvio ao alterar', () => {
+  const t = createTask({ title: 'Ligar', remind_at: '2026-10-02T09:30' });
+  assert.equal(t.remind_at, '2026-10-02T09:30');
+  assert.throws(() => createTask({ title: 'X', remind_at: '2026-13-40T99:00' }), /inválidas/);
+  assert.equal(dueReminders('2026-10-02T09:29').length, 0);
+  assert.equal(dueReminders('2026-10-02T09:30').map((x) => x.id)[0], t.id);
+  markReminded(t.id);
+  assert.equal(dueReminders('2026-10-02T10:00').length, 0);
+  // alterar o horário reativa o lembrete
+  updateTask(t.id, { remind_at: '2026-10-02T11:00' });
+  assert.equal(dueReminders('2026-10-02T11:00').length, 1);
+  // concluída não lembra
+  updateTask(t.id, { completed: true });
+  assert.equal(dueReminders('2026-10-02T11:00').length, 0);
 });

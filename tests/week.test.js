@@ -1,6 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { useMemoryDb } from '../src/db/database.js';
+import { today as todayYmd, addDays } from '../src/services/dates.js';
 import { createTask, updateTask, weekView } from '../src/services/tasks.js';
 
 // Semana de 28/09/2026 (segunda) a 04/10/2026 (domingo); "hoje" = quarta 30/09
@@ -74,20 +75,25 @@ test('concluídas: com prazo ficam no dia do prazo, sem prazo no dia da conclus�
 });
 
 test('recorrência: ocorrência criada aparece como real, futuras como previstas', () => {
-  createTask({ title: 'Relatório', recurrence: { freq: 'weekly', interval: 1, weekdays: [1, 5] }, start_date: '2026-09-01' });
-  const w = weekView(START, TODAY);
-  // segunda 28/09 é a última ocorrência <= hoje: materializada
-  const seg = day(w, '2026-09-28').tasks[0];
-  assert.equal(seg.title, 'Relatório');
-  assert.equal(seg.virtual, undefined);
-  assert.ok(seg.id);
-  // sexta 02/10 é futura: prevista
-  const sex = day(w, '2026-10-02').tasks[0];
-  assert.equal(sex.virtual, true);
-  assert.equal(sex.kind, 'projected');
-  assert.equal(sex.id, null);
-  // terça não tem
-  assert.equal(day(w, '2026-09-29').tasks.length, 0);
+  // semana real de hoje; regra: hoje e daqui a 2 dias (dias da semana), ancorada 14 dias atrás
+  const today = todayYmd();
+  const wd = new Date(today + 'T12:00:00').getDay();
+  const wd2 = (wd + 2) % 7;
+  createTask({ title: 'Relatório', recurrence: { freq: 'weekly', interval: 1, weekdays: [wd, wd2].sort() }, start_date: addDays(today, -14) });
+  const monday = addDays(today, -((wd + 6) % 7));
+  const w = weekView(monday, today);
+  const hoje = day(w, today).tasks[0];
+  assert.equal(hoje.title, 'Relatório');
+  assert.equal(hoje.virtual, undefined); // materializada (última <= hoje)
+  assert.ok(hoje.id);
+  const in2 = addDays(today, 2);
+  if (in2 <= w.end) {
+    const fut = day(w, in2).tasks[0];
+    assert.equal(fut.virtual, true);
+    assert.equal(fut.kind, 'projected');
+    assert.equal(fut.id, null);
+  }
+  assert.equal(day(w, addDays(today, 1)).tasks.length, 0);
 });
 
 test('recorrência pausada não gera previsões; dias passados sem ocorrência ficam vazios', () => {

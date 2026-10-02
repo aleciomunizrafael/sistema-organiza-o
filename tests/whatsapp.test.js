@@ -76,7 +76,12 @@ test('cria tarefa a partir do grupo e responde citando a mensagem', () => {
   assert.equal(sent.length, 1);
   assert.equal(sent[0].jid, 'grupo@g.us');
   assert.match(sent[0].content.text, /Anotado: Enviar relatório/);
-  assert.match(sent[0].content.text, /prazo 02\/10\/2026/);
+  // "até sexta" = próxima sexta depois de hoje (data real)
+  const now = new Date();
+  const delta = ((5 - now.getDay() + 7) % 7) || 7;
+  const fri = new Date(now.getFullYear(), now.getMonth(), now.getDate() + delta);
+  const p = (n) => String(n).padStart(2, '0');
+  assert.match(sent[0].content.text, new RegExp(`prazo ${p(fri.getDate())}\\/${p(fri.getMonth() + 1)}\\/${fri.getFullYear()}`));
   assert.equal(sent[0].opts.quoted.key.id, 'M1');
 });
 

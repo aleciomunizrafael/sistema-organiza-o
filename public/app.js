@@ -223,6 +223,7 @@
       if (t.start_date && t.start_date > state.today) add('entra ' + fmtDate(t.start_date));
       if (t.template_id) add('↻ recorrente');
       if (t.someday) add(t.trigger_text ? 'quando ' + t.trigger_text.replace(/^quando\s+/i, '') : 'sem data');
+      if (t.remind_at && !t.completed_at) add('lembrete ' + fmtDate(t.remind_at.slice(0, 10), false) + ' ' + t.remind_at.slice(11), t.reminded_at ? '' : 'today');
       if (t.completed_at) add('concluída ' + fmtDateTime(t.completed_at));
     }
     if (t.source === 'whatsapp') add('WhatsApp' + (t.source_sender ? ' · ' + t.source_sender.replace(/\s*\(\d+\)$/, '') : ''), 'wa');
@@ -306,6 +307,7 @@
     $('#f-due').value = task?.due_date || preset.due_date || '';
     $('#f-priority').checked = Boolean(task?.priority);
     $('#f-trigger').value = task?.trigger_text || preset.trigger_text || '';
+    $('#f-remind').value = task?.remind_at || '';
     $('#f-delete').classList.toggle('hidden', !task);
     setMode(task ? (task.someday ? 'someday' : 'todo') : (preset.someday ? 'someday' : 'todo'));
     // modo só faz sentido para tarefas comuns (não recorrentes)
@@ -449,6 +451,7 @@
       priority: $('#f-priority').checked,
       someday: true,
       trigger_text: $('#f-trigger').value,
+      remind_at: $('#f-remind').value || null,
       start_date: null,
       due_date: null,
       recurrence: null,
@@ -461,6 +464,7 @@
       recurrence,
       someday: false,
       trigger_text: '',
+      remind_at: $('#f-remind').value || null,
     };
     if (!body.title.trim()) { toast('Informe um título'); return; }
     try {
@@ -749,6 +753,71 @@
   }
   $('#s-theme').addEventListener('change', () => applyTheme($('#s-theme').value));
 
+  // ---------- notificações ----------
+  async function refreshPushStatus() {
+    const el = $('#push-status');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      el.textContent = 'Este navegador não suporta notificações do app.';
+      $('#push-enable').disabled = true;
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      const info = await api('GET', '/api/push/status');
+      el.textContent = (sub ? 'Ativado neste aparelho. ' : 'Não ativado neste aparelho. ') + `${info.devices} aparelho(s) ativado(s) no total.`;
+      $('#push-enable').textContent = sub ? 'Desativar neste aparelho' : 'Ativar notificações neste aparelho';
+    } catch { el.textContent = ''; }
+  }
+  function b64ToU8(b64) {
+    const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  }
+  $('#push-enable').addEventListener('click', async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        await api('POST', '/api/push/unsubscribe', { endpoint: existing.endpoint });
+        await existing.unsubscribe();
+        toast('Notificações desativadas neste aparelho');
+      } else {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') { toast('Permissão de notificação negada'); return; }
+        const { publicKey } = await api('GET', '/api/push/key');
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(publicKey) });
+        await api('POST', '/api/push/subscribe', sub.toJSON());
+        toast('Notificações ativadas neste aparelho');
+      }
+    } catch (e) { toast(e.message); }
+    refreshPushStatus();
+  });
+  $('#notify-test').addEventListener('click', async () => {
+    try {
+      const r = await api('POST', '/api/notify/test');
+      const parts = [];
+      parts.push(r.whatsapp ? 'WhatsApp: enviado' : 'WhatsApp: não enviado');
+      parts.push(`App: ${r.push} aparelho(s)`);
+      if (r.errors?.length) parts.push(r.errors.join('; '));
+      toast(parts.join(' · '), 5000);
+    } catch (e) { toast(e.message); }
+  });
+  $('#s-save-notify').addEventListener('click', async () => {
+    try {
+      const days = $$('#s-digest-days input:checked').map((c) => c.value).join(',');
+      const { settings } = await api('PUT', '/api/settings', {
+        notify_whatsapp: $('#s-notify-wa').checked ? '1' : '0',
+        notify_push: $('#s-notify-push').checked ? '1' : '0',
+        digest_time: $('#s-digest-time').value || '',
+        digest_days: days,
+      });
+      state.settings = settings;
+      $('#s-saved-notify').textContent = 'Salvo ✓';
+      setTimeout(() => { $('#s-saved-notify').textContent = ''; }, 2500);
+    } catch (e) { toast(e.message); }
+  });
+
   // ---------- sessão ----------
   api('GET', '/api/auth/status').then((a) => { $('#s-logout-wrap').classList.toggle('hidden', !a.enabled); }).catch(() => {});
   $('#s-logout').addEventListener('click', async () => {
@@ -770,6 +839,12 @@
     $('#s-own').checked = settings.wa_accept_own === '1';
     $('#s-senders').value = settings.wa_allowed_senders;
     $('#s-offline').value = settings.wa_offline_alert_hours;
+    $('#s-notify-wa').checked = settings.notify_whatsapp === '1';
+    $('#s-notify-push').checked = settings.notify_push === '1';
+    $('#s-digest-time').value = settings.digest_time || '';
+    const days = (settings.digest_days || '').split(',');
+    $$('#s-digest-days input').forEach((c) => { c.checked = days.includes(c.value); });
+    refreshPushStatus();
   }
 
   async function loadWa() {

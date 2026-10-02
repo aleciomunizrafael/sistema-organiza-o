@@ -34,6 +34,14 @@ function cleanTitle(v) {
   return t;
 }
 
+/** 'YYYY-MM-DDTHH:MM' (hora local) ou null. */
+function cleanDateTime(v) {
+  if (v == null || v === '') return null;
+  const m = String(v).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+  if (!m || !isValidYmd(m[1]) || +m[2] > 23 || +m[3] > 59) throw new Error(`Data e hora inválidas: ${v}`);
+  return `${m[1]}T${m[2]}:${m[3]}`;
+}
+
 function cleanText(v) {
   if (v == null) return '';
   if (typeof v !== 'string') throw new Error('Texto inválido');
@@ -55,6 +63,7 @@ export function createTask(input) {
   const priority = toBool(input.priority) ? 1 : 0;
   const someday = toBool(input.someday) ? 1 : 0;
   const trigger = cleanText(input.trigger_text) || null;
+  const remindAt = cleanDateTime(input.remind_at);
   const rule = someday ? null : normalizeRule(input.recurrence);
   let startDate = someday ? null : cleanDate(input.start_date);
   let dueDate = someday ? null : cleanDate(input.due_date);
@@ -75,10 +84,10 @@ export function createTask(input) {
   }
 
   const r = db.prepare(`
-    INSERT INTO tasks (title, notes, start_date, due_date, priority, someday, trigger_text, source, source_sender, source_text,
+    INSERT INTO tasks (title, notes, start_date, due_date, priority, someday, trigger_text, remind_at, source, source_sender, source_text,
                        source_message_id, source_timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title, notes, startDate, dueDate, priority, someday, trigger, source, input.source_sender ?? null, input.source_text ?? null,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, notes, startDate, dueDate, priority, someday, trigger, remindAt, source, input.source_sender ?? null, input.source_text ?? null,
     input.source_message_id ?? null, input.source_timestamp ?? null);
   return getTask(Number(r.lastInsertRowid));
 }
@@ -96,6 +105,11 @@ export function updateTask(id, input) {
   if (input.notes !== undefined) set('notes', cleanText(input.notes));
   if (input.priority !== undefined) set('priority', toBool(input.priority) ? 1 : 0);
   if (input.trigger_text !== undefined) set('trigger_text', cleanText(input.trigger_text) || null);
+  if (input.remind_at !== undefined) {
+    const r = cleanDateTime(input.remind_at);
+    set('remind_at', r);
+    if (r !== current.remind_at) set('reminded_at', null); // lembrete novo ou alterado volta a valer
+  }
 
   const isOccurrence = Boolean(current.template_id);
 
@@ -381,4 +395,16 @@ export function weekView(start, today = todayYmd()) {
   `).all(start, today).map(row);
 
   return { start, end, today, days, undated, someday, overdue };
+}
+
+/** Lembretes vencidos ainda não enviados (remind_at <= agora, tarefa aberta). */
+export function dueReminders(nowLocal) {
+  return getDb().prepare(`
+    SELECT * FROM tasks WHERE remind_at IS NOT NULL AND reminded_at IS NULL AND completed_at IS NULL
+      AND remind_at <= ? ORDER BY remind_at
+  `).all(nowLocal).map(row);
+}
+
+export function markReminded(id) {
+  getDb().prepare('UPDATE tasks SET reminded_at = ? WHERE id = ?').run(nowIso(), id);
 }

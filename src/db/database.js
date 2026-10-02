@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority INTEGER NOT NULL DEFAULT 0,
   someday INTEGER NOT NULL DEFAULT 0,
   trigger_text TEXT,
+  remind_at TEXT,
+  reminded_at TEXT,
   completed_at TEXT,
   source TEXT NOT NULL DEFAULT 'manual',
   source_sender TEXT,
@@ -34,6 +36,14 @@ CREATE TABLE IF NOT EXISTS skipped_occurrences (
   template_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   occurrence_date TEXT NOT NULL,
   PRIMARY KEY (template_id, occurrence_date)
+);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  subscription TEXT NOT NULL,
+  user_agent TEXT,
+  created_at TEXT NOT NULL,
+  failures INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -76,6 +86,8 @@ CREATE TABLE IF NOT EXISTS notices (
 const TASK_COLUMNS = [
   ['someday', 'INTEGER NOT NULL DEFAULT 0'],
   ['trigger_text', 'TEXT'],
+  ['remind_at', 'TEXT'],
+  ['reminded_at', 'TEXT'],
 ];
 
 function migrate(d) {
@@ -121,6 +133,10 @@ export const DEFAULT_SETTINGS = {
   wa_accept_own: '1',
   wa_allowed_senders: '',
   wa_offline_alert_hours: '2',
+  notify_whatsapp: '1',
+  notify_push: '1',
+  digest_time: '',
+  digest_days: '1,2,3,4,5',
 };
 
 export function getSettings() {

@@ -126,6 +126,31 @@
           </label>
         </div>
 
+        <h2>Notificações</h2>
+        <div class="panel form">
+          <label class="check"><input id="s-notify-wa" type="checkbox"> Mandar lembretes no meu WhatsApp (conversa "Você")</label>
+          <label class="check"><input id="s-notify-push" type="checkbox"> Mandar notificações do app nos aparelhos ativados</label>
+          <div class="btn-row">
+            <button id="push-enable" class="secondary">Ativar notificações neste aparelho</button>
+            <button id="notify-test" class="secondary">Enviar teste</button>
+            <span id="push-status" class="hint"></span>
+          </div>
+          <label>Resumo diário (vazio = desligado)
+            <input id="s-digest-time" type="time">
+          </label>
+          <div class="weekdays" id="s-digest-days">
+            <label><input type="checkbox" value="1"> Seg</label>
+            <label><input type="checkbox" value="2"> Ter</label>
+            <label><input type="checkbox" value="3"> Qua</label>
+            <label><input type="checkbox" value="4"> Qui</label>
+            <label><input type="checkbox" value="5"> Sex</label>
+            <label><input type="checkbox" value="6"> Sáb</label>
+            <label><input type="checkbox" value="0"> Dom</label>
+          </div>
+          <div class="btn-row"><button id="s-save-notify" class="primary">Salvar</button><span id="s-saved-notify" class="hint"></span></div>
+          <p class="hint">No iPhone, as notificações do app só funcionam com o Organiza instalado na tela de início (Safari → Compartilhar → Adicionar à Tela de Início) e com iOS 16.4 ou mais novo.</p>
+        </div>
+
         <h2>WhatsApp</h2>
         <div class="panel">
           <div class="status-line"><span class="dot" id="wa-dot"></span><span id="wa-status-text">Carregando…</span></div>
@@ -209,6 +234,9 @@
           </label>
         </div>
         <label class="check"><input id="f-priority" type="checkbox"> Prioridade alta</label>
+        <label>Lembrete (avisa no WhatsApp e no app)
+          <input id="f-remind" type="datetime-local">
+        </label>
         <label id="f-repeat-wrap">Repetir
           <select id="f-repeat">
             <option value="">Nunca</option>

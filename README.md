@@ -6,6 +6,7 @@ Sistema pessoal de tarefas e demandas, no estilo do app Lembretes do iPhone, com
 - Duas listas sem prazo: **A fazer** (o que está na sua mesa agora) e **Sem data** (o que fica guardado para quando uma condição acontecer, como "comprar papel de outro fornecedor, quando o papel acabar").
 - Tarefas agendadas só entram na lista na data escolhida.
 - Tarefas recorrentes (diárias, dias úteis, semanais, quinzenais, mensais, anuais ou personalizadas).
+- **Lembretes e notificações**: cada tarefa pode ter um lembrete com data e hora, enviado como mensagem do bot no seu próprio WhatsApp e como notificação do app no celular. Resumo diário opcional de manhã com as tarefas do dia e as atrasadas.
 - **Bloco da semana**: uma tela só, com cara de bloco de papel, mostrando a semana dia a dia (prazos, agendadas e recorrências previstas) e, embaixo, as tarefas sem data, que aparecem sempre.
 - Bot do WhatsApp: qualquer mensagem no grupo com o marcador (padrão `#demanda`) vira tarefa, com resposta de confirmação no grupo.
 - Entende datas escritas em português: "até sexta", "amanhã", "15/10", "dia 20", "todo dia 5", "toda segunda".
@@ -229,6 +230,17 @@ Na tela inicial, toque em **Bloco da semana**. A tela usa a largura inteira e te
 As setas trocam de semana e o botão "Hoje" volta para a atual. O "+" ao lado de cada dia cria uma tarefa já com aquele prazo. Marcar o círculo conclui a tarefa na hora.
 
 No editor de tarefa, o seletor **A fazer / Sem data** troca uma tarefa de lista. Em "Sem data" os campos de data e repetição somem e aparece o campo "Quando fazer". Dar um prazo a uma tarefa "Sem data" a traz de volta para "A fazer".
+
+## Lembretes e notificações
+
+No editor de tarefa, o campo **Lembrete** recebe data e hora. Na hora marcada o sistema avisa por dois canais, ligados em Configurações → Notificações:
+
+- **WhatsApp**: o bot manda uma mensagem para o seu próprio número (aparece na conversa "Você"). Exige o bot conectado.
+- **Notificação do app**: nos aparelhos onde você clicou em "Ativar notificações neste aparelho". Funciona no Android (Chrome) e no iPhone com o app instalado na tela de início (iOS 16.4 ou mais novo). Cada aparelho precisa ser ativado uma vez.
+
+O botão "Enviar teste" dispara uma notificação pelos canais ativos para você conferir.
+
+**Resumo diário**: defina um horário (ex.: 08:00) e os dias da semana. Nesse horário chega uma mensagem com as tarefas atrasadas, as de hoje e as que entram na lista hoje. Alterar o lembrete de uma tarefa reativa o aviso; concluir a tarefa cancela.
 
 ## Como a recorrência funciona
 

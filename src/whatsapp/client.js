@@ -43,6 +43,12 @@ export function listGroups() {
   return state.groups;
 }
 
+/** Envia uma mensagem para o próprio número (conversa "Você"). */
+export async function sendToSelf(text) {
+  if (!sock || state.status !== 'connected' || !state.me?.id) throw new Error('WhatsApp não conectado');
+  await sock.sendMessage(`${state.me.id}@s.whatsapp.net`, { text });
+}
+
 async function loadBaileys() {
   if (!baileys) baileys = await import('@whiskeysockets/baileys');
   return baileys;
