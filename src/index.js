@@ -5,6 +5,7 @@ import { getDb } from './db/database.js';
 import { apiRouter } from './routes/api.js';
 import { startScheduler } from './services/scheduler.js';
 import * as wa from './whatsapp/client.js';
+import { calendarToken, buildCalendar } from './services/ical.js';
 import { authMiddleware, authEnabled, checkPassword, createSession, destroySession, cookieHeader, tooManyFails, recordFail, clearFails } from './auth.js';
 
 const log = pino({ level: config.logLevel, transport: { target: 'pino/file', options: { destination: 1 } } });
@@ -54,6 +55,15 @@ app.post('/api/logout', (req, res) => {
   res.set('Set-Cookie', cookieHeader(req, '', { clear: true }));
   res.json({ ok: true });
 });
+// Calendário para assinar (Google Agenda etc.): protegido pelo token no endereço
+app.get('/calendar/:token.ics', (req, res) => {
+  if (req.params.token !== calendarToken()) return res.status(404).send('Não encontrado');
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  res.set('Content-Type', 'text/calendar; charset=utf-8');
+  res.set('Cache-Control', 'no-cache');
+  res.send(buildCalendar({ baseUrl: `${proto}://${req.headers.host}` }));
+});
+
 app.use(authMiddleware);
 
 app.use('/api', apiRouter());

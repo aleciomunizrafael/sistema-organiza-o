@@ -7,6 +7,7 @@ import { parseDemand } from '../whatsapp/parser.js';
 import * as wa from '../whatsapp/client.js';
 import { vapidKeys, saveSubscription, removeSubscription, countSubscriptions, notify } from '../services/notify.js';
 import { buildDigest } from '../services/scheduler.js';
+import { calendarToken } from '../services/ical.js';
 
 export function apiRouter() {
   const r = Router();
@@ -84,6 +85,11 @@ export function apiRouter() {
   // ---------- avisos ----------
   r.get('/notices', (_req, res) => res.json(listNotices()));
   r.post('/notices/:id/dismiss', (req, res) => { dismissNotice(Number(req.params.id)); res.status(204).end(); });
+
+  // ---------- calendário (.ics) ----------
+  const feedUrl = (req, token) => `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}/calendar/${token}.ics`;
+  r.get('/calendar/feed', (req, res) => res.json({ url: feedUrl(req, calendarToken()) }));
+  r.post('/calendar/feed/rotate', (req, res) => res.json({ url: feedUrl(req, calendarToken({ rotate: true })) }));
 
   // ---------- notificações ----------
   r.get('/push/key', (_req, res) => res.json({ publicKey: vapidKeys().publicKey }));

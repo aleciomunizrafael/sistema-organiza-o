@@ -753,6 +753,21 @@
   }
   $('#s-theme').addEventListener('change', () => applyTheme($('#s-theme').value));
 
+  // ---------- calendário .ics ----------
+  async function loadIcal() {
+    try { const { url } = await api('GET', '/api/calendar/feed'); $('#ical-url').value = url; } catch { /* ignore */ }
+  }
+  $('#ical-copy').addEventListener('click', async () => {
+    const v = $('#ical-url').value;
+    try { await navigator.clipboard.writeText(v); toast('Endereço copiado'); }
+    catch { $('#ical-url').select(); toast('Selecione e copie o endereço'); }
+  });
+  $('#ical-rotate').addEventListener('click', async () => {
+    if (!confirm('Gerar um novo endereço? O antigo deixa de funcionar e será preciso assinar de novo no Google Agenda.')) return;
+    try { const { url } = await api('POST', '/api/calendar/feed/rotate'); $('#ical-url').value = url; toast('Novo endereço gerado'); }
+    catch (e) { toast(e.message); }
+  });
+
   // ---------- notificações ----------
   async function refreshPushStatus() {
     const el = $('#push-status');
@@ -792,6 +807,7 @@
       }
     } catch (e) { toast(e.message); }
     refreshPushStatus();
+    loadIcal();
   });
   $('#notify-test').addEventListener('click', async () => {
     try {
@@ -845,6 +861,7 @@
     const days = (settings.digest_days || '').split(',');
     $$('#s-digest-days input').forEach((c) => { c.checked = days.includes(c.value); });
     refreshPushStatus();
+    loadIcal();
   }
 
   async function loadWa() {

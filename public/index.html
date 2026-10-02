@@ -126,6 +126,19 @@
           </label>
         </div>
 
+        <h2>Google Agenda</h2>
+        <div class="panel form">
+          <p class="hint">Assine este endereço no Google Agenda para ver as tarefas com prazo, as agendadas, os lembretes e as recorrências ao lado dos seus compromissos. O Google atualiza calendários assinados a cada algumas horas.</p>
+          <label>Endereço do calendário (secreto, não compartilhe)
+            <input id="ical-url" type="text" readonly>
+          </label>
+          <div class="btn-row">
+            <button id="ical-copy" class="secondary">Copiar endereço</button>
+            <button id="ical-rotate" class="danger-outline">Gerar novo endereço</button>
+          </div>
+          <p class="hint">No computador: Google Agenda → ao lado de "Outras agendas" clique em + → <strong>Por URL</strong> → cole o endereço → Adicionar agenda. A agenda "Organiza" aparece também no app do celular.</p>
+        </div>
+
         <h2>Notificações</h2>
         <div class="panel form">
           <label class="check"><input id="s-notify-wa" type="checkbox"> Mandar lembretes no meu WhatsApp (conversa "Você")</label>

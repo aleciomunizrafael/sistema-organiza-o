@@ -231,6 +231,10 @@ As setas trocam de semana e o botão "Hoje" volta para a atual. O "+" ao lado de
 
 No editor de tarefa, o seletor **A fazer / Sem data** troca uma tarefa de lista. Em "Sem data" os campos de data e repetição somem e aparece o campo "Quando fazer". Dar um prazo a uma tarefa "Sem data" a traz de volta para "A fazer".
 
+## Google Agenda (assinatura)
+
+Em Configurações → Google Agenda há um endereço secreto terminado em `.ics`. Assine esse endereço no Google Agenda (no computador: ao lado de "Outras agendas", **+** → **Por URL** → colar → Adicionar) e as tarefas com prazo, as agendadas, os lembretes e as recorrências aparecem como uma agenda chamada "Organiza", inclusive no app do celular. O Google atualiza agendas assinadas a cada algumas horas. "Gerar novo endereço" invalida o antigo, caso ele vaze. O mesmo endereço funciona no Outlook e no Calendário do iPhone.
+
 ## Lembretes e notificações
 
 No editor de tarefa, o campo **Lembrete** recebe data e hora. Na hora marcada o sistema avisa por dois canais, ligados em Configurações → Notificações:

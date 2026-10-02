@@ -107,7 +107,7 @@ const PUBLIC_PATHS = new Set(['/login', '/login.html', '/styles.css', '/manifest
 
 export function authMiddleware(req, res, next) {
   if (!authEnabled()) return next();
-  if (PUBLIC_PATHS.has(req.path)) return next();
+  if (PUBLIC_PATHS.has(req.path) || req.path.startsWith('/calendar/')) return next();
   if (sessionValid(req) || basicValid(req)) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Faça login para continuar', login: true });
   // Páginas: manda para a tela de login (o service worker também não é servido sem login)
