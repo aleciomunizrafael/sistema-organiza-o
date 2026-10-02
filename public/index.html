@@ -139,6 +139,41 @@
           <p class="hint">No computador: Google Agenda → ao lado de "Outras agendas" clique em + → <strong>Por URL</strong> → cole o endereço → Adicionar agenda. A agenda "Organiza" aparece também no app do celular.</p>
         </div>
 
+        <h2>Google Agenda (sincronização completa)</h2>
+        <div class="panel form">
+          <div class="status-line"><span class="dot" id="gcal-dot"></span><span id="gcal-status-text">Não configurado</span></div>
+          <p id="gcal-detail" class="hint"></p>
+          <details class="hint">
+            <summary>Como configurar (uma vez, uns 15 minutos, gratuito)</summary>
+            <ol>
+              <li>Acesse <strong>console.cloud.google.com</strong> com a sua conta Google e crie um projeto (ex.: "Organiza").</li>
+              <li>Menu <strong>APIs e serviços → Biblioteca</strong>, procure <strong>Google Calendar API</strong> e clique em <strong>Ativar</strong>.</li>
+              <li>Menu <strong>APIs e serviços → Credenciais → Criar credenciais → Conta de serviço</strong>. Dê um nome (ex.: "organiza") e conclua.</li>
+              <li>Abra a conta de serviço criada, aba <strong>Chaves → Adicionar chave → Criar nova chave → JSON</strong>. Um arquivo é baixado. Copie o e-mail da conta de serviço (termina em <code>iam.gserviceaccount.com</code>).</li>
+              <li>No <strong>Google Agenda</strong> (computador): Configurações da sua agenda → <strong>Compartilhar com pessoas específicas → Adicionar</strong> → cole o e-mail da conta de serviço com permissão <strong>Fazer alterações nos eventos</strong>.</li>
+              <li>Abra o arquivo JSON baixado em um editor de texto, copie todo o conteúdo e cole abaixo. Informe o ID da agenda (o seu e-mail do Google) e salve.</li>
+            </ol>
+          </details>
+          <label>Chave JSON da conta de serviço (cole o conteúdo do arquivo)
+            <textarea id="gcal-json" rows="3" placeholder='{"type": "service_account", ...}'></textarea>
+          </label>
+          <div class="btn-row"><button id="gcal-save-json" class="secondary">Salvar chave</button><button id="gcal-remove-json" class="danger-outline">Remover chave</button></div>
+          <label>ID da agenda para receber as tarefas (normalmente o seu e-mail do Google)
+            <input id="gcal-calendar" type="text" placeholder="voce@gmail.com">
+          </label>
+          <label>Agendas para mostrar no Bloco da semana (IDs separados por vírgula; vazio = a mesma acima)
+            <input id="gcal-read" type="text" placeholder="voce@gmail.com, trabalho@empresa.com.br">
+          </label>
+          <label class="check"><input id="gcal-push" type="checkbox"> Enviar tarefas com prazo e recorrências para a agenda</label>
+          <label class="check"><input id="gcal-pull" type="checkbox"> Mostrar compromissos da agenda no Bloco da semana</label>
+          <div class="btn-row">
+            <button id="gcal-save" class="primary">Salvar</button>
+            <button id="gcal-test" class="secondary">Testar conexão</button>
+            <button id="gcal-sync" class="secondary">Sincronizar agora</button>
+            <span id="gcal-saved" class="hint"></span>
+          </div>
+        </div>
+
         <h2>Notificações</h2>
         <div class="panel form">
           <label class="check"><input id="s-notify-wa" type="checkbox"> Mandar lembretes no meu WhatsApp (conversa "Você")</label>

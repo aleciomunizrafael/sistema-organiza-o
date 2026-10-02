@@ -235,6 +235,15 @@ No editor de tarefa, o seletor **A fazer / Sem data** troca uma tarefa de lista.
 
 Em Configurações → Google Agenda há um endereço secreto terminado em `.ics`. Assine esse endereço no Google Agenda (no computador: ao lado de "Outras agendas", **+** → **Por URL** → colar → Adicionar) e as tarefas com prazo, as agendadas, os lembretes e as recorrências aparecem como uma agenda chamada "Organiza", inclusive no app do celular. O Google atualiza agendas assinadas a cada algumas horas. "Gerar novo endereço" invalida o antigo, caso ele vaze. O mesmo endereço funciona no Outlook e no Calendário do iPhone.
 
+## Google Agenda (sincronização completa pela API)
+
+Além da assinatura, dá para ligar o sistema diretamente à sua agenda, nos dois sentidos:
+
+- **Tarefas → agenda**: toda tarefa com prazo e toda recorrência vira um evento na sua agenda do Google, atualizado quando você muda o prazo e removido quando conclui ou exclui. A sincronização roda a cada 10 minutos e poucos segundos depois de cada mudança.
+- **Agenda → Bloco da semana**: os seus compromissos (reuniões, consultas) aparecem no dia certo, com horário, dentro da folha da semana, junto das tarefas. Clicar abre o evento no Google.
+
+Isso usa uma "conta de serviço" do Google, gratuita. A configuração é feita uma vez, em Configurações → Google Agenda (sincronização completa), e o passo a passo está na própria tela: criar um projeto no Google Cloud, ativar a API do Google Agenda, criar a conta de serviço, baixar a chave JSON, compartilhar a sua agenda com o e-mail da conta de serviço e colar a chave no sistema. A chave fica em `data/google-service-account.json` (entra no backup; trate como senha).
+
 ## Lembretes e notificações
 
 No editor de tarefa, o campo **Lembrete** recebe data e hora. Na hora marcada o sistema avisa por dois canais, ligados em Configurações → Notificações:

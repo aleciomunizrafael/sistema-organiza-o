@@ -8,6 +8,7 @@ import * as wa from '../whatsapp/client.js';
 import { vapidKeys, saveSubscription, removeSubscription, countSubscriptions, notify } from '../services/notify.js';
 import { buildDigest } from '../services/scheduler.js';
 import { calendarToken } from '../services/ical.js';
+import * as gcal from '../services/gcal.js';
 
 export function apiRouter() {
   const r = Router();
@@ -21,12 +22,16 @@ export function apiRouter() {
   });
 
   // Visão semanal ("bloco"): ?start=YYYY-MM-DD (segunda-feira); padrão = semana atual
-  r.get('/week', (req, res) => {
+  r.get('/week', async (req, res) => {
     const t = today();
     let start = String(req.query.start || '');
     if (!isValidYmd(start)) start = mondayOf(t);
     else start = mondayOf(start);
-    res.json({ counts: counts(), ...weekView(start, t) });
+    const week = weekView(start, t);
+    let events = [];
+    try { events = await gcal.fetchEvents(week.start, week.end); } catch { events = []; }
+    for (const day of week.days) day.events = events.filter((e) => e.date === day.date);
+    res.json({ counts: counts(), ...week, calendar_connected: gcal.getStatus().pull && gcal.hasCredentials() });
   });
 
   r.get('/tasks/:id', (req, res) => {
@@ -48,17 +53,21 @@ export function apiRouter() {
         else { body.recurrence = rec.rule; if (dt.date) body.start_date = dt.date; }
       } else if (dt.date && !body.due_date) body.due_date = dt.date;
     }
-    res.status(201).json(createTask(body));
+    const created = createTask(body);
+    gcal.scheduleSync();
+    res.status(201).json(created);
   });
 
   r.patch('/tasks/:id', (req, res) => {
     const t = updateTask(Number(req.params.id), req.body || {});
     if (!t) return res.status(404).json({ error: 'Tarefa não encontrada' });
+    gcal.scheduleSync();
     res.json(t);
   });
 
   r.delete('/tasks/:id', (req, res) => {
     if (!deleteTask(Number(req.params.id))) return res.status(404).json({ error: 'Tarefa não encontrada' });
+    gcal.scheduleSync();
     res.status(204).end();
   });
 
@@ -90,6 +99,23 @@ export function apiRouter() {
   const feedUrl = (req, token) => `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}/calendar/${token}.ics`;
   r.get('/calendar/feed', (req, res) => res.json({ url: feedUrl(req, calendarToken()) }));
   r.post('/calendar/feed/rotate', (req, res) => res.json({ url: feedUrl(req, calendarToken({ rotate: true })) }));
+
+  // ---------- Google Agenda (API) ----------
+  r.get('/gcal/status', (_req, res) => res.json(gcal.getStatus()));
+  r.post('/gcal/credentials', (req, res) => {
+    try { res.json(gcal.saveCredentials(req.body?.json ?? req.body)); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  r.delete('/gcal/credentials', (_req, res) => { gcal.removeCredentials(); res.json({ ok: true }); });
+  r.post('/gcal/test', async (_req, res) => {
+    try { res.json(await gcal.testConnection()); } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  r.post('/gcal/sync', async (req, res) => {
+    try {
+      const baseUrl = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
+      res.json(await gcal.syncTasksToCalendar({ baseUrl }));
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
 
   // ---------- notificações ----------
   r.get('/push/key', (_req, res) => res.json({ publicKey: vapidKeys().publicKey }));

@@ -14,7 +14,7 @@ getDb();
 
 const app = express();
 app.disable('x-powered-by');
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '500kb' }));
 
 app.set('trust proxy', 'loopback'); // atrás do Caddy: req.secure e req.ip corretos
 

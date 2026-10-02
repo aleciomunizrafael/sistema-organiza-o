@@ -3,6 +3,7 @@ import { materializeAll, dueReminders, markReminded, listTasks } from './tasks.j
 import { getSettings, getState, setState } from '../db/database.js';
 import { today as todayYmd } from './dates.js';
 import { notify, reminderMessage, digestMessage, setLogger } from './notify.js';
+import * as gcal from './gcal.js';
 
 function nowLocal() {
   const d = new Date();
@@ -18,6 +19,9 @@ function nowLocal() {
  */
 export function startScheduler(log) {
   setLogger(log);
+  gcal.setLogger(log);
+  cron.schedule('*/10 * * * *', () => gcal.syncTasksToCalendar().catch(() => {}));
+  setTimeout(() => gcal.syncTasksToCalendar().catch(() => {}), 15_000);
   const run = (why) => {
     try {
       const n = materializeAll();

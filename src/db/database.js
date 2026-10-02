@@ -38,6 +38,14 @@ CREATE TABLE IF NOT EXISTS skipped_occurrences (
   PRIMARY KEY (template_id, occurrence_date)
 );
 
+CREATE TABLE IF NOT EXISTS gcal_events (
+  task_id INTEGER PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  calendar_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   endpoint TEXT PRIMARY KEY,
   subscription TEXT NOT NULL,
@@ -137,6 +145,10 @@ export const DEFAULT_SETTINGS = {
   notify_push: '1',
   digest_time: '',
   digest_days: '1,2,3,4,5',
+  gcal_calendar_id: '',
+  gcal_read_ids: '',
+  gcal_push: '0',
+  gcal_pull: '0',
 };
 
 export function getSettings() {

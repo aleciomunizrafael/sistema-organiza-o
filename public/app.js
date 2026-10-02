@@ -594,7 +594,9 @@
       add.addEventListener('click', () => openEditor(null, { due_date: day.date }));
       hd.appendChild(add);
 
-      if (!day.tasks.length) emptyLine(body);
+      const events = day.events || [];
+      if (!day.tasks.length && !events.length) emptyLine(body);
+      for (const ev of events) body.appendChild(renderEventItem(ev));
       for (const t of day.tasks) body.appendChild(renderPaperItem(t));
     }
   }
@@ -637,6 +639,33 @@
       }
     });
     li.append(tick, input);
+    return li;
+  }
+
+  // Compromisso vindo do Google Agenda (só leitura)
+  function renderEventItem(ev) {
+    const li = document.createElement('div');
+    li.className = 'paper-item event';
+    const time = document.createElement('span');
+    time.className = 'event-time';
+    time.textContent = ev.all_day ? 'dia' : ev.time;
+    const main = document.createElement('div');
+    main.className = 'paper-content';
+    const title = document.createElement('span');
+    title.className = 'paper-title';
+    title.textContent = ev.title;
+    main.appendChild(title);
+    const meta = [];
+    if (!ev.all_day && ev.end_time) meta.push(`até ${ev.end_time}`);
+    if (ev.location) meta.push(ev.location);
+    if (meta.length) {
+      const m = document.createElement('span');
+      m.className = 'paper-meta';
+      m.textContent = meta.join(' · ');
+      main.appendChild(m);
+    }
+    if (ev.link) main.addEventListener('click', () => window.open(ev.link, '_blank', 'noopener'));
+    li.append(time, main);
     return li;
   }
 
@@ -753,6 +782,69 @@
   }
   $('#s-theme').addEventListener('change', () => applyTheme($('#s-theme').value));
 
+  // ---------- Google Agenda (API) ----------
+  async function loadGcal() {
+    try {
+      const g = await api('GET', '/api/gcal/status');
+      $('#gcal-dot').className = 'dot ' + (g.configured ? (g.lastError ? 'error' : 'connected') : 'disconnected');
+      $('#gcal-status-text').textContent = !g.client_email ? 'Chave não configurada'
+        : !g.calendar_id ? 'Chave salva; falta o ID da agenda'
+          : g.lastError ? 'Com erro' : (g.push || g.pull ? 'Configurado' : 'Configurado (sincronização desligada)');
+      const parts = [];
+      if (g.client_email) parts.push(`Conta de serviço: ${g.client_email}`);
+      if (g.lastSyncAt) parts.push(`Última sincronização: ${fmtDateTime(g.lastSyncAt)} (${g.lastSyncResult ? `${g.lastSyncResult.created} criados, ${g.lastSyncResult.updated} atualizados, ${g.lastSyncResult.deleted} removidos` : ''})`);
+      if (g.mapped) parts.push(`${g.mapped} evento(s) mantidos na agenda`);
+      if (g.lastError) parts.push(`Erro: ${g.lastError}`);
+      $('#gcal-detail').textContent = parts.join(' · ');
+      $('#gcal-calendar').value = state.settings?.gcal_calendar_id || '';
+      $('#gcal-read').value = state.settings?.gcal_read_ids || '';
+      $('#gcal-push').checked = state.settings?.gcal_push === '1';
+      $('#gcal-pull').checked = state.settings?.gcal_pull === '1';
+    } catch { /* ignore */ }
+  }
+  $('#gcal-save-json').addEventListener('click', async () => {
+    const json = $('#gcal-json').value.trim();
+    if (!json) { toast('Cole o conteúdo do arquivo JSON'); return; }
+    try {
+      const r = await api('POST', '/api/gcal/credentials', { json });
+      $('#gcal-json').value = '';
+      toast(`Chave salva: ${r.client_email}`, 5000);
+      loadGcal();
+    } catch (e) { toast(e.message, 6000); }
+  });
+  $('#gcal-remove-json').addEventListener('click', async () => {
+    if (!confirm('Remover a chave da conta de serviço? A sincronização para.')) return;
+    try { await api('DELETE', '/api/gcal/credentials'); toast('Chave removida'); loadGcal(); } catch (e) { toast(e.message); }
+  });
+  $('#gcal-save').addEventListener('click', async () => {
+    try {
+      const { settings } = await api('PUT', '/api/settings', {
+        gcal_calendar_id: $('#gcal-calendar').value.trim(),
+        gcal_read_ids: $('#gcal-read').value.trim(),
+        gcal_push: $('#gcal-push').checked ? '1' : '0',
+        gcal_pull: $('#gcal-pull').checked ? '1' : '0',
+      });
+      state.settings = settings;
+      $('#gcal-saved').textContent = 'Salvo ✓';
+      setTimeout(() => { $('#gcal-saved').textContent = ''; }, 2500);
+      loadGcal();
+    } catch (e) { toast(e.message); }
+  });
+  $('#gcal-test').addEventListener('click', async () => {
+    $('#gcal-test').disabled = true;
+    try { const r = await api('POST', '/api/gcal/test'); toast(`Conectado à agenda "${r.summary}" (${r.timeZone})`, 6000); }
+    catch (e) { toast(e.message, 8000); }
+    finally { $('#gcal-test').disabled = false; loadGcal(); }
+  });
+  $('#gcal-sync').addEventListener('click', async () => {
+    $('#gcal-sync').disabled = true;
+    try {
+      const r = await api('POST', '/api/gcal/sync');
+      toast(r.skipped ? 'Sincronização desligada ou sem chave' : `${r.created} criados, ${r.updated} atualizados, ${r.deleted} removidos${r.errors ? `, ${r.errors} erros` : ''}`, 6000);
+    } catch (e) { toast(e.message, 8000); }
+    finally { $('#gcal-sync').disabled = false; loadGcal(); }
+  });
+
   // ---------- calendário .ics ----------
   async function loadIcal() {
     try { const { url } = await api('GET', '/api/calendar/feed'); $('#ical-url').value = url; } catch { /* ignore */ }
@@ -808,6 +900,7 @@
     } catch (e) { toast(e.message); }
     refreshPushStatus();
     loadIcal();
+    loadGcal();
   });
   $('#notify-test').addEventListener('click', async () => {
     try {
@@ -862,6 +955,7 @@
     $$('#s-digest-days input').forEach((c) => { c.checked = days.includes(c.value); });
     refreshPushStatus();
     loadIcal();
+    loadGcal();
   }
 
   async function loadWa() {

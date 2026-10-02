@@ -677,6 +677,9 @@ body.wide #app { max-width: 1560px; padding: 0 clamp(16px, 3vw, 40px); }
 .paper-item.completed .paper-title {
   color: var(--pencil); text-decoration: line-through; text-decoration-thickness: 1.5px; text-decoration-color: var(--accent);
 }
+.paper-item.event { background: var(--navy-soft); border-radius: 6px; margin: 2px 0; padding-left: 6px; }
+.paper-item.event .paper-content { cursor: pointer; }
+.event-time { flex: none; min-width: 44px; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--navy-soft-ink); line-height: var(--lh); text-align: right; padding-right: 2px; }
 .paper-item.virtual { opacity: .6; }
 .paper-item.virtual .tick { border-style: dashed; }
 .paper-someday .tick { border-color: var(--mustard-muted); }
