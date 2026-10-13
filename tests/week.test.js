@@ -51,26 +51,15 @@ test('atrasadas de semanas anteriores aparecem em "overdue", não nos dias', () 
   assert.equal(w2.overdue.length, 0);
 });
 
-test('concluídas: com prazo ficam no dia do prazo, sem prazo no dia da conclusão', () => {
+test('concluídas não aparecem na folha da semana', () => {
   const a = createTask({ title: 'Feita com prazo', due_date: '2026-09-29' });
   updateTask(a.id, { completed: true });
   const b = createTask({ title: 'Feita sem prazo' });
   updateTask(b.id, { completed: true });
+  createTask({ title: 'Aberta', due_date: '2026-09-29' });
   const w = weekView(START, TODAY);
-  const doneA = day(w, '2026-09-29').tasks.find((t) => t.title === 'Feita com prazo');
-  assert.ok(doneA && doneA.completed_at);
-  const realToday = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  const todayReal = `${realToday.getFullYear()}-${p(realToday.getMonth() + 1)}-${p(realToday.getDate())}`;
-  const wReal = weekView(START, TODAY);
-  const found = wReal.days.flatMap((d) => d.tasks).find((t) => t.title === 'Feita sem prazo');
-  // só aparece se a conclusão (data real) cair dentro da semana consultada
-  if (todayReal >= START && todayReal <= '2026-10-04') {
-    assert.ok(found, 'concluída sem prazo deveria aparecer no dia da conclusão');
-    assert.equal(found.kind, 'done');
-  } else {
-    assert.equal(found, undefined);
-  }
+  const all = w.days.flatMap((d) => titles(d.tasks));
+  assert.deepEqual(all, ['Aberta']);
   assert.equal(w.undated.some((t) => t.title === 'Feita sem prazo'), false);
 });
 
@@ -113,14 +102,13 @@ test('semana futura mostra só previsões e agendadas', () => {
   assert.deepEqual(titles(day(w, '2026-10-07').tasks).sort(), ['Agendada', 'Dias úteis']);
 });
 
-test('ordenação no dia: abertas antes das concluídas, prioridade alta primeiro', () => {
-  const a = createTask({ title: 'B normal', due_date: '2026-10-01' });
+test('ordenação no dia: prioridade alta primeiro; concluídas somem', () => {
+  createTask({ title: 'B normal', due_date: '2026-10-01' });
   createTask({ title: 'A alta', due_date: '2026-10-01', priority: true });
   const c = createTask({ title: 'C feita', due_date: '2026-10-01' });
   updateTask(c.id, { completed: true });
   const w = weekView(START, TODAY);
-  assert.deepEqual(titles(day(w, '2026-10-01').tasks), ['A alta', 'B normal', 'C feita']);
-  assert.ok(a.id);
+  assert.deepEqual(titles(day(w, '2026-10-01').tasks), ['A alta', 'B normal']);
 });
 
 test('"sem data" (someday) fica na lista própria, fora de "A fazer" e dos dias', () => {

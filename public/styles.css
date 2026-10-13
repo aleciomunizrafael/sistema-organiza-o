@@ -636,7 +636,7 @@ body.wide #app { max-width: 1560px; padding: 0 clamp(16px, 3vw, 40px); }
 }
 :root[data-theme="dark"] .paper-holes i { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .8), 0 1px 0 rgba(255, 255, 255, .05); }
 
-.paper-main { min-height: 40vh; }
+.paper-main { min-height: 150px; }
 .paper-week { --lh: 34px; }
 
 /* Post-it "Sem data": sem furos nem margem, presa com fita */
@@ -753,8 +753,14 @@ body.dragging .day-block.drop-over { background: var(--accent-soft); box-shadow:
 .paper-item.event { background: var(--navy-soft); border-radius: 6px; margin: 2px 0; padding-left: 6px; }
 .paper-item.event .paper-content { cursor: pointer; }
 .event-time { flex: none; min-width: 44px; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--navy-soft-ink); line-height: var(--lh); text-align: right; padding-right: 2px; }
-.paper-item.virtual { opacity: .6; }
-.paper-item.virtual .tick { border-style: dashed; }
+/* Recorrentes: legíveis, marcadas por um selo; as previstas (ainda não criadas) só com o círculo tracejado */
+.rec-chip {
+  display: inline-flex; align-items: center; align-self: center; gap: 3px; flex: none;
+  font-family: var(--sans); font-size: 11.5px; font-weight: 600; line-height: 19px; letter-spacing: .01em;
+  padding: 0 7px; border-radius: 999px; background: var(--navy-soft); color: var(--navy-soft-ink);
+}
+.paper-item.virtual .paper-title { color: var(--ink-2); }
+.paper-item.virtual .tick { border-style: dashed; border-color: var(--navy-soft-ink); opacity: .85; }
 .paper-someday .tick { border-color: var(--mustard-muted); }
 .paper-someday .tick.done { background: var(--mustard-ink); border-color: var(--mustard-ink); }
 
@@ -781,7 +787,7 @@ body.dragging .day-block.drop-over { background: var(--accent-soft); box-shadow:
   .week-side .week-nav {
     position: sticky; top: 0; z-index: 3; background: var(--bg); margin: 0 -2px 0; padding: 0 2px 12px;
   }
-  body.wide .paper-main { min-height: calc(100vh - 360px); }
+  body.wide .paper-main { min-height: 150px; }
   body.wide .fab { right: calc(max(clamp(16px, 3vw, 40px), (100vw - 1560px) / 2) + 58px); }
   .paper { --gutter: 56px; --top: 28px; }
   .paper-someday { --gutter: 24px; }

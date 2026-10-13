@@ -587,7 +587,7 @@
     if (pastDays.length) {
       let open = false;
       try { open = localStorage.getItem('organiza-past-open') === '1'; } catch { /* ignore */ }
-      const pending = pastDays.reduce((n, d) => n + d.tasks.filter((t) => !t.completed_at && !t.virtual).length, 0);
+      const pending = pastDays.reduce((n, d) => n + d.tasks.filter((t) => !t.virtual).length, 0);
       const names = pastDays.map((d) => WEEKDAYS_LONG[new Date(d.date + 'T12:00:00').getDay()].slice(0, 3)).join(', ');
       const toggle = document.createElement('button');
       toggle.type = 'button';
@@ -952,11 +952,18 @@
     if (!opts.inSheet && t.status === 'doing') meta.push('em andamento');
     if (!opts.inSheet && t.status === 'leticia') meta.push((state.leticiaLabel || 'Ver com Letícia').toLowerCase());
     if (t.kind === 'scheduled') meta.push('entra na lista');
-    if (t.kind === 'projected' || t.template_id) meta.push('↻' + (t.recurrence_label ? ' ' + t.recurrence_label.toLowerCase() : ''));
+
     if (t.someday && t.trigger_text) meta.push(t.trigger_text);
     else if (t.someday && t.kind === 'done') meta.push('sem data');
     if (t.source === 'whatsapp') meta.push('WhatsApp');
     if (t.notes) meta.push(t.notes.length > 60 ? t.notes.slice(0, 60) + '…' : t.notes);
+    if (t.kind === 'projected' || t.template_id) {
+      const chip = document.createElement('span');
+      chip.className = 'rec-chip';
+      chip.textContent = '↻ ' + (t.recurrence_label ? t.recurrence_label.toLowerCase() : 'recorrente');
+      chip.title = t.virtual ? 'Tarefa recorrente: entra na lista neste dia' : 'Tarefa recorrente';
+      main.appendChild(chip);
+    }
     if (meta.length) {
       const m = document.createElement('span');
       m.className = 'paper-meta';

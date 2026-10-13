@@ -356,22 +356,19 @@ export function weekView(start, today = todayYmd()) {
   const db = getDb();
   const end = addDays(start, 6);
 
+  // Só tarefas abertas: as concluídas saem da folha da semana (ficam em "Concluídas")
   const rows = db.prepare(`
-    SELECT * FROM tasks WHERE is_template = 0 AND (
+    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND (
       (due_date BETWEEN ? AND ?)
-      OR (due_date IS NULL AND start_date BETWEEN ? AND ? AND start_date > ? AND completed_at IS NULL)
-      OR (due_date IS NULL AND completed_at IS NOT NULL AND substr(completed_at, 1, 10) BETWEEN ? AND ?)
+      OR (due_date IS NULL AND start_date BETWEEN ? AND ? AND start_date > ?)
     )
-  `).all(start, end, start, end, today, start, end).map(row);
+  `).all(start, end, start, end, today).map(row);
 
   const days = [];
   for (let i = 0; i < 7; i++) {
     const date = addDays(start, i);
-    const tasks = rows.filter((t) => {
-      if (t.due_date) return t.due_date === date;
-      if (t.completed_at) return t.completed_at.slice(0, 10) === date;
-      return t.start_date === date;
-    }).map((t) => ({ ...t, kind: t.due_date ? 'due' : t.completed_at ? 'done' : 'scheduled' }));
+    const tasks = rows.filter((t) => (t.due_date ? t.due_date === date : t.start_date === date))
+      .map((t) => ({ ...t, kind: t.due_date ? 'due' : 'scheduled' }));
     days.push({ date, tasks });
   }
 
