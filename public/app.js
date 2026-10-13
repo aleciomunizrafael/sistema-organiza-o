@@ -8,6 +8,7 @@
     completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações', week: 'Bloco da semana', someday: 'Sem data', doing: 'Em andamento', leticia: 'Ver com Letícia',
   };
   const WEEKDAYS_LONG = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const MONTHS_LONG = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   const WEEKDAYS_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -70,6 +71,7 @@
 
   // ---------- navegação ----------
   function show(view) {
+    if (view === 'week' && state.view !== 'week') state.scrollToToday = true;
     state.view = view;
     if (view === 'settings') state.settingsLoaded = false;
     $('#page-title').textContent = VIEW_TITLES[view] || 'Organiza';
@@ -577,20 +579,51 @@
       for (const t of w.overdue) body.appendChild(renderPaperItem(t, { showDate: true }));
     }
 
+    // Na semana atual, os dias que já passaram ficam recolhidos numa linha (abre com um clique),
+    // para a folha começar no dia de hoje.
+    const isCurrentWeek = w.today >= w.start && w.today <= w.end;
+    const pastDays = isCurrentWeek ? w.days.filter((d) => d.date < w.today) : [];
+    let pastBox = null;
+    if (pastDays.length) {
+      let open = false;
+      try { open = localStorage.getItem('organiza-past-open') === '1'; } catch { /* ignore */ }
+      const pending = pastDays.reduce((n, d) => n + d.tasks.filter((t) => !t.completed_at && !t.virtual).length, 0);
+      const names = pastDays.map((d) => WEEKDAYS_LONG[new Date(d.date + 'T12:00:00').getDay()].slice(0, 3)).join(', ');
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'past-toggle';
+      const label = () => `${open ? '▾' : '▸'} Dias anteriores: ${names}${pending ? ` · ${pending} em aberto` : ''}`;
+      toggle.textContent = label();
+      toggle.setAttribute('aria-expanded', String(open));
+      body.appendChild(toggle);
+      pastBox = document.createElement('div');
+      pastBox.className = 'past-days' + (open ? '' : ' hidden');
+      body.appendChild(pastBox);
+      toggle.addEventListener('click', () => {
+        open = !open;
+        try { localStorage.setItem('organiza-past-open', open ? '1' : '0'); } catch { /* ignore */ }
+        pastBox.classList.toggle('hidden', !open);
+        toggle.textContent = label();
+        toggle.setAttribute('aria-expanded', String(open));
+      });
+    }
+
     for (const day of w.days) {
-      const [, , d] = day.date.split('-').map(Number);
-      const wd = new Date(...day.date.split('-').map((x, i) => (i === 1 ? Number(x) - 1 : Number(x)))).getDay();
+      const [y, m, d] = day.date.split('-').map(Number);
+      const wd = new Date(y, m - 1, d).getDay();
       const isToday = day.date === w.today;
+      const isPast = day.date < w.today;
       const block = document.createElement('div');
-      block.className = 'day-block';
+      block.className = 'day-block' + (isToday ? ' today' : '') + (isPast ? ' past' : '');
       block.dataset.drop = 'day:' + day.date;
-      body.appendChild(block);
-      const hd = section(block, `${WEEKDAYS_LONG[wd]}, ${d}`, 'day' + (isToday ? ' today' : '') + (day.date < w.today ? ' past' : ''));
+      (isPast && pastBox ? pastBox : body).appendChild(block);
+      const title = isToday ? `${WEEKDAYS_LONG[wd]}, ${d} de ${MONTHS_LONG[m - 1]}` : `${WEEKDAYS_LONG[wd]}, ${d}`;
+      const hd = section(block, title, 'day' + (isToday ? ' today' : '') + (isPast ? ' past' : ''));
       if (isToday) {
         const tag = document.createElement('span');
         tag.className = 'today-tag';
         tag.textContent = 'hoje';
-        hd.appendChild(tag);
+        hd.prepend(tag);
       }
       const add = document.createElement('button');
       add.className = 'paper-add';
@@ -600,10 +633,29 @@
       hd.appendChild(add);
 
       const events = day.events || [];
-      if (!day.tasks.length && !events.length) emptyLine(block);
+      if (!day.tasks.length && !events.length) emptyLine(block, isToday ? 'nada marcado para hoje' : '—');
       for (const ev of events) block.appendChild(renderEventItem(ev));
       for (const t of day.tasks) block.appendChild(renderPaperItem(t));
     }
+
+    if (state.scrollToToday) {
+      state.scrollToToday = false;
+      requestAnimationFrame(() => frameToday());
+    }
+  }
+
+  // Coloca o dia de hoje no topo da coluna da semana (no computador, onde ela rola sozinha)
+  function frameToday() {
+    const el = document.querySelector('#week-body .day-block.today');
+    const side = document.querySelector('.week-side');
+    if (!side) return;
+    if (!el) { side.scrollTop = 0; return; }
+    const scrollable = side.scrollHeight > side.clientHeight + 4 && getComputedStyle(side).overflowY !== 'visible';
+    if (!scrollable) return;
+    const offset = el.getBoundingClientRect().top - side.getBoundingClientRect().top;
+    const nav = side.querySelector('.week-nav');
+    const keep = (nav ? nav.offsetHeight : 0) + 10;
+    side.scrollTo({ top: Math.max(0, side.scrollTop + offset - keep), behavior: 'smooth' });
   }
 
   // ---------- arrastar e soltar (mouse; no celular, toque longo) ----------
@@ -925,9 +977,9 @@
     return li;
   }
 
-  $('#week-prev').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), -7); refresh(); });
-  $('#week-next').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), 7); refresh(); });
-  $('#week-today').addEventListener('click', () => { state.weekStart = mondayOf(todayYmd()); refresh(); });
+  $('#week-prev').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), -7); state.scrollToToday = true; refresh(); });
+  $('#week-next').addEventListener('click', () => { state.weekStart = addDays(state.weekStart || mondayOf(todayYmd()), 7); state.scrollToToday = true; refresh(); });
+  $('#week-today').addEventListener('click', () => { state.weekStart = mondayOf(todayYmd()); state.scrollToToday = true; refresh(); });
 
   // ---------- faixa do WhatsApp (bot fora do ar) ----------
   async function loadWaBanner() {

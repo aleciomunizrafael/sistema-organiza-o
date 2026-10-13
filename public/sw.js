@@ -1,5 +1,5 @@
 // Service worker mínimo: estáticos em cache, API sempre da rede.
-const CACHE = 'organiza-v3';
+const CACHE = 'organiza-v4';
 const STATIC = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.json', '/icons/icon.svg'];
 
 self.addEventListener('install', (e) => {
