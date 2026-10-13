@@ -59,6 +59,14 @@
             <span class="row-icon week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/><path d="M4 7h2M4 12h2M4 17h2"/></svg></span><span class="row-text">Bloco da semana</span>
             <span class="chev">›</span>
           </button>
+          <button class="row-link" data-view="doing">
+            <span class="row-icon doing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span class="row-text">Em andamento</span>
+            <span class="row-count" id="count-doing">0</span><span class="chev">›</span>
+          </button>
+          <button class="row-link" data-view="leticia">
+            <span class="row-icon leticia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="row-text" id="row-leticia-label">Ver com Letícia</span>
+            <span class="row-count" id="count-leticia">0</span><span class="chev">›</span>
+          </button>
           <button class="row-link" data-view="someday">
             <span class="row-icon someday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15.5A8 8 0 0 1 8.5 4a8 8 0 1 0 11.5 11.5z"/><path d="M16 4h4l-4 4h4"/></svg></span><span class="row-text">Sem data</span>
             <span class="row-count" id="count-someday">0</span><span class="chev">›</span>
@@ -86,6 +94,14 @@
       <section id="view-week" class="view hidden">
         <div class="week-layout">
           <div class="week-main">
+            <div class="flow-row">
+              <div class="paper paper-doing">
+                <div class="paper-body" id="doing-body"></div>
+              </div>
+              <div class="paper paper-leticia">
+                <div class="paper-body" id="leticia-body"></div>
+              </div>
+            </div>
             <div class="paper paper-main">
               <div class="paper-holes"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
               <div class="paper-body" id="undated-body"></div>
@@ -117,6 +133,9 @@
         </div>
         <h2>Aparência</h2>
         <div class="panel form">
+          <label>Nome da lista "Ver com…"
+            <input id="s-leticia-label" type="text" placeholder="Ver com Letícia">
+          </label>
           <label>Tema
             <select id="s-theme">
               <option value="auto">Automático (segue o sistema)</option>
@@ -281,6 +300,13 @@
             <input id="f-due" type="date">
           </label>
         </div>
+        <label id="f-status-wrap">Situação
+          <select id="f-status">
+            <option value="todo">A fazer</option>
+            <option value="doing">Em andamento</option>
+            <option value="leticia" id="f-status-leticia">Ver com Letícia</option>
+          </select>
+        </label>
         <label class="check"><input id="f-priority" type="checkbox"> Prioridade alta</label>
         <label>Lembrete (avisa no WhatsApp e no app)
           <input id="f-remind" type="datetime-local">

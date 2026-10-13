@@ -64,8 +64,9 @@ test('eventos desejados: prazos e recorrências, sem concluídas nem "sem data"'
   createTask({ title: 'Prazo', due_date: '2026-10-10', priority: true });
   createTask({ title: 'Sem nada' });
   createTask({ title: 'Guardada', someday: true });
-  const tpl = createTask({ title: 'Mensal', recurrence: { freq: 'monthly', interval: 1, monthDay: 5 }, start_date: '2026-10-01' });
-  const d = gcal.desiredEvents('2026-10-01', 'https://x');
+  // âncora no futuro: nenhuma ocorrência é criada ainda, independente da data real
+  const tpl = createTask({ title: 'Mensal', recurrence: { freq: 'monthly', interval: 1, monthDay: 5 }, start_date: '2999-01-01' });
+  const d = gcal.desiredEvents('2999-01-01', 'https://x');
   assert.equal(d.size, 2);
   const prazo = [...d.values()].find((e) => e.summary === '! Prazo');
   assert.deepEqual(prazo.start, { date: '2026-10-10' });
@@ -73,7 +74,7 @@ test('eventos desejados: prazos e recorrências, sem concluídas nem "sem data"'
   const rec = d.get(tpl.id);
   assert.equal(rec.summary, '↻ Mensal');
   assert.deepEqual(rec.recurrence, ['RRULE:FREQ=MONTHLY;BYMONTHDAY=5']);
-  assert.deepEqual(rec.start, { date: '2026-10-05' });
+  assert.deepEqual(rec.start, { date: '2999-01-05' });
 });
 
 test('sincronização cria, atualiza e remove eventos conforme as tarefas mudam', async () => {

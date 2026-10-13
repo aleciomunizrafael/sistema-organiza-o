@@ -227,6 +227,16 @@ Na tela inicial, toque em **Bloco da semana**. A tela usa a largura inteira e te
 - **Folha "Sem data"**, logo abaixo, menor e amarelada: tarefas guardadas para algum dia, sem prazo e sem pressa, cada uma com a condição em que deve ser feita ("quando o papel acabar"). A linha de escrita dessa folha entende o "quando": digitar `Comprar papel de outro fornecedor quando o papel acabar` separa o título da condição. Essas tarefas não aparecem em Hoje nem em Todas; ficam só aqui e na lista "Sem data" da tela inicial.
 - **Folha da semana**, ao lado (ou abaixo, no celular): **Atrasadas** no topo, quando houver prazo vencido de semanas anteriores, e depois **segunda a domingo**, cada dia com as tarefas cujo prazo cai naquele dia, as agendadas para entrar naquele dia e as recorrências. Ocorrências futuras de recorrências aparecem em tom mais claro, como previsão, e entram na lista de verdade quando o dia chega. Tarefas concluídas ficam riscadas no dia.
 
+**Em andamento** e **Ver com Letícia** ficam lado a lado acima de "A fazer". "Em andamento" é o que você está fazendo agora; "Ver com Letícia" junta o que precisa conversar com ela (o nome da lista muda em Configurações → Aparência). Tarefas com prazo também podem estar nessas fichas: aparecem nelas e no dia da semana.
+
+**Arrastar e soltar.** No computador, clique e arraste qualquer tarefa; no celular, toque e segure meio segundo e arraste. Dá para:
+
+- mudar a ordem dentro de "A fazer" (e de qualquer outra ficha);
+- passar uma tarefa entre "A fazer", "Em andamento", "Ver com Letícia" e "Sem data";
+- soltar uma tarefa num dia da semana para dar esse prazo a ela.
+
+Tarefas novas entram no fim de "A fazer"; as de prioridade alta entram no topo. Tarefas com prazo ou recorrentes não vão para "Sem data" (tire o prazo antes). No editor, o campo "Situação" faz a mesma troca de ficha sem arrastar.
+
 As setas trocam de semana e o botão "Hoje" volta para a atual. O "+" ao lado de cada dia cria uma tarefa já com aquele prazo. Marcar o círculo conclui a tarefa na hora.
 
 No editor de tarefa, o seletor **A fazer / Sem data** troca uma tarefa de lista. Em "Sem data" os campos de data e repetição somem e aparece o campo "Quando fazer". Dar um prazo a uma tarefa "Sem data" a traz de volta para "A fazer".

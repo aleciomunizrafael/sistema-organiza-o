@@ -5,7 +5,7 @@
 
   const VIEW_TITLES = {
     home: 'Organiza', today: 'Hoje', scheduled: 'Agendadas', all: 'Todas',
-    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações', week: 'Bloco da semana', someday: 'Sem data',
+    completed: 'Concluídas', templates: 'Recorrentes', settings: 'Configurações', week: 'Bloco da semana', someday: 'Sem data', doing: 'Em andamento', leticia: 'Ver com Letícia',
   };
   const WEEKDAYS_LONG = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -77,7 +77,7 @@
     $('#view-settings').classList.toggle('hidden', view !== 'settings');
     $('#view-week').classList.toggle('hidden', view !== 'week');
     document.body.classList.toggle('wide', view === 'week');
-    $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates', 'someday'].includes(view));
+    $('#view-list').classList.toggle('hidden', !['today', 'scheduled', 'all', 'completed', 'templates', 'someday', 'doing', 'leticia'].includes(view));
     $('#btn-home').style.visibility = view === 'home' ? 'hidden' : 'visible';
     $('#fab').classList.toggle('hidden', view === 'settings');
     history.replaceState(null, '', view === 'home' ? '#' : `#${view}`);
@@ -87,6 +87,7 @@
 
   let refreshSeq = 0;
   async function refresh() {
+    if (drag.active) return;
     const seq = ++refreshSeq;
     const stale = () => seq !== refreshSeq;
     try {
@@ -102,6 +103,7 @@
         const q = state.weekStart ? `?start=${state.weekStart}` : '';
         const w = await api('GET', `/api/week${q}`);
         if (stale()) return;
+        applyLabels(w.labels);
         state.today = w.today;
         state.counts = w.counts;
         state.week = w;
@@ -113,6 +115,7 @@
       const view = state.view === 'home' ? 'today' : state.view;
       const data = await api('GET', `/api/tasks?view=${view}`);
       if (stale()) return;
+      applyLabels(data.labels);
       state.today = data.today;
       state.counts = data.counts;
       state.tasks = data.tasks;
@@ -131,6 +134,8 @@
     $('#count-completed').textContent = c.completed ?? 0;
     $('#count-templates').textContent = c.templates ?? 0;
     $('#count-someday').textContent = c.someday ?? 0;
+    $('#count-doing').textContent = c.doing ?? 0;
+    $('#count-leticia').textContent = c.leticia ?? 0;
   }
 
   // ---------- lista ----------
@@ -146,6 +151,7 @@
         today: 'Nada para hoje.', scheduled: 'Nenhuma tarefa agendada.', all: 'Nenhuma tarefa pendente.',
         completed: 'Nenhuma tarefa concluída ainda.', templates: 'Nenhuma tarefa recorrente.',
         someday: 'Nada guardado para "algum dia".',
+        doing: 'Nada em andamento.', leticia: 'Nada para ver com ela.',
       }[state.view] || 'Nada aqui.';
       empty.classList.remove('hidden');
       return;
@@ -221,6 +227,8 @@
         add((cls === 'overdue' ? 'venceu ' : 'até ') + fmtDate(t.due_date), cls);
       }
       if (t.start_date && t.start_date > state.today) add('entra ' + fmtDate(t.start_date));
+      if (t.status === 'doing') add('em andamento', 'today');
+      if (t.status === 'leticia') add((state.leticiaLabel || 'Ver com Letícia').toLowerCase());
       if (t.template_id) add('↻ recorrente');
       if (t.someday) add(t.trigger_text ? 'quando ' + t.trigger_text.replace(/^quando\s+/i, '') : 'sem data');
       if (t.remind_at && !t.completed_at) add('lembrete ' + fmtDate(t.remind_at.slice(0, 10), false) + ' ' + t.remind_at.slice(11), t.reminded_at ? '' : 'today');
@@ -308,6 +316,8 @@
     $('#f-priority').checked = Boolean(task?.priority);
     $('#f-trigger').value = task?.trigger_text || preset.trigger_text || '';
     $('#f-remind').value = task?.remind_at || '';
+    $('#f-status').value = task?.status || preset.status || 'todo';
+    $('#f-status-wrap').classList.toggle('hidden', Boolean(task?.is_template));
     $('#f-delete').classList.toggle('hidden', !task);
     setMode(task ? (task.someday ? 'someday' : 'todo') : (preset.someday ? 'someday' : 'todo'));
     // modo só faz sentido para tarefas comuns (não recorrentes)
@@ -386,6 +396,7 @@
     $('#f-trigger-wrap').classList.toggle('hidden', !someday);
     $('#f-dates').classList.toggle('hidden', someday);
     $('#f-repeat-wrap').classList.toggle('hidden', someday || isOccurrenceEdit());
+    $('#f-status-wrap').classList.toggle('hidden', someday || Boolean(state.editing?.is_template));
     if (someday || isOccurrenceEdit()) { $('#f-custom').classList.add('hidden'); $('#f-until-wrap').classList.add('hidden'); }
     else updateRepeatUi();
   }
@@ -465,6 +476,7 @@
       someday: false,
       trigger_text: '',
       remind_at: $('#f-remind').value || null,
+      ...(recurrence ? {} : { status: $('#f-status').value }),
     };
     if (!body.title.trim()) { toast('Informe um título'); return; }
     try {
@@ -514,11 +526,7 @@
     const w = state.week;
     if (!w) return;
     const body = $('#week-body');
-    const main = $('#undated-body');
-    const some = $('#someday-body');
-    body.innerHTML = '';
-    main.innerHTML = '';
-    some.innerHTML = '';
+    taskById.clear();
 
     const [sy] = w.start.split('-');
     const [ey] = w.end.split('-');
@@ -540,37 +548,30 @@
       parent.appendChild(e);
     };
 
-    // ----- folha principal: a fazer -----
-    const h = section(main, 'A fazer', 'undated');
-    const count = document.createElement('span');
-    count.className = 'paper-count';
-    count.textContent = w.undated.length;
-    h.appendChild(count);
-    if (!w.undated.length) emptyLine(main, 'nada pendente');
-    else {
-      const items = document.createElement('div');
-      items.className = 'paper-items';
-      for (const t of w.undated) items.appendChild(renderPaperItem(t));
-      main.appendChild(items);
-    }
-    main.appendChild(renderAddLine());
+    // Folha que aceita arrastar: título, contador, itens (zona de soltar) e linha de escrita
+    const sheet = (el, { title, cls, list, items, empty, addOpts }) => {
+      el.innerHTML = '';
+      const h = section(el, title, cls);
+      const count = document.createElement('span');
+      count.className = 'paper-count';
+      count.textContent = items.length;
+      h.appendChild(count);
+      const box = document.createElement('div');
+      box.className = 'paper-items';
+      box.dataset.drop = list;
+      if (!items.length) emptyLine(box, empty);
+      for (const t of items) box.appendChild(renderPaperItem(t, { showDate: Boolean(t.due_date), inSheet: true }));
+      el.appendChild(box);
+      el.appendChild(renderAddLine(addOpts));
+    };
 
-    // ----- folha secundária: sem data (algum dia) -----
-    const hs = section(some, 'Sem data', 'someday');
-    const cs = document.createElement('span');
-    cs.className = 'paper-count';
-    cs.textContent = (w.someday || []).length;
-    hs.appendChild(cs);
-    if (!(w.someday || []).length) emptyLine(some, 'nada guardado');
-    else {
-      const items = document.createElement('div');
-      items.className = 'paper-items';
-      for (const t of w.someday || []) items.appendChild(renderPaperItem(t));
-      some.appendChild(items);
-    }
-    some.appendChild(renderAddLine({ someday: true }));
+    sheet($('#doing-body'), { title: 'Em andamento', cls: 'doing', list: 'doing', items: w.doing || [], empty: 'arraste para cá o que está fazendo', addOpts: { status: 'doing' } });
+    sheet($('#leticia-body'), { title: state.leticiaLabel || 'Ver com Letícia', cls: 'leticia', list: 'leticia', items: w.leticia || [], empty: 'arraste para cá', addOpts: { status: 'leticia' } });
+    sheet($('#undated-body'), { title: 'A fazer', cls: 'undated', list: 'todo', items: w.undated, empty: 'nada pendente', addOpts: {} });
+    sheet($('#someday-body'), { title: 'Sem data', cls: 'someday', list: 'someday', items: w.someday || [], empty: 'nada guardado', addOpts: { someday: true } });
 
-    // ----- folha da semana -----
+    // ----- folha da semana: cada dia é uma zona de soltar (muda o prazo) -----
+    body.innerHTML = '';
     if (w.overdue.length) {
       section(body, 'Atrasadas', 'overdue');
       for (const t of w.overdue) body.appendChild(renderPaperItem(t, { showDate: true }));
@@ -580,7 +581,11 @@
       const [, , d] = day.date.split('-').map(Number);
       const wd = new Date(...day.date.split('-').map((x, i) => (i === 1 ? Number(x) - 1 : Number(x)))).getDay();
       const isToday = day.date === w.today;
-      const hd = section(body, `${WEEKDAYS_LONG[wd]}, ${d}`, 'day' + (isToday ? ' today' : '') + (day.date < w.today ? ' past' : ''));
+      const block = document.createElement('div');
+      block.className = 'day-block';
+      block.dataset.drop = 'day:' + day.date;
+      body.appendChild(block);
+      const hd = section(block, `${WEEKDAYS_LONG[wd]}, ${d}`, 'day' + (isToday ? ' today' : '') + (day.date < w.today ? ' past' : ''));
       if (isToday) {
         const tag = document.createElement('span');
         tag.className = 'today-tag';
@@ -595,11 +600,205 @@
       hd.appendChild(add);
 
       const events = day.events || [];
-      if (!day.tasks.length && !events.length) emptyLine(body);
-      for (const ev of events) body.appendChild(renderEventItem(ev));
-      for (const t of day.tasks) body.appendChild(renderPaperItem(t));
+      if (!day.tasks.length && !events.length) emptyLine(block);
+      for (const ev of events) block.appendChild(renderEventItem(ev));
+      for (const t of day.tasks) block.appendChild(renderPaperItem(t));
     }
   }
+
+  // ---------- arrastar e soltar (mouse; no celular, toque longo) ----------
+  const taskById = new Map();
+  const drag = { active: false, src: null, task: null, ghost: null, ph: null, zone: null, x: 0, y: 0, sx: 0, sy: 0, dx: 0, dy: 0, timer: null, pid: null, ptype: '', raf: 0, suppressClick: false };
+
+  function makeDraggable(li, t) {
+    li.dataset.id = t.id;
+    li.classList.add('draggable');
+    taskById.set(String(t.id), t);
+    li.addEventListener('pointerdown', onDragPointerDown);
+    li.addEventListener('contextmenu', (e) => { if (drag.src) e.preventDefault(); });
+  }
+
+  function onDragPointerDown(e) {
+    if (drag.active || drag.src) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.tick, input, select, textarea, a, .paper-add')) return;
+    const li = e.currentTarget;
+    drag.src = li;
+    drag.pid = e.pointerId;
+    drag.ptype = e.pointerType;
+    drag.sx = drag.x = e.clientX;
+    drag.sy = drag.y = e.clientY;
+    if (e.pointerType === 'mouse') e.preventDefault(); // evita selecionar texto ao arrastar
+    else drag.timer = setTimeout(() => startDrag(), 380); // toque longo
+    window.addEventListener('pointermove', onDragPointerMove, { passive: false });
+    window.addEventListener('pointerup', onDragPointerUp);
+    window.addEventListener('pointercancel', onDragPointerCancel);
+  }
+
+  function onDragPointerMove(e) {
+    if (e.pointerId !== drag.pid) return;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    if (!drag.active) {
+      const dist = Math.hypot(drag.x - drag.sx, drag.y - drag.sy);
+      if (drag.ptype === 'mouse') { if (dist > 5) startDrag(); }
+      else if (dist > 10) endDrag(false); // o dedo andou antes do toque longo: é rolagem
+      return;
+    }
+    e.preventDefault();
+    positionGhost();
+    updateDropTarget();
+  }
+
+  function onDragPointerUp(e) {
+    if (e.pointerId !== drag.pid) return;
+    endDrag(drag.active);
+  }
+
+  function onDragPointerCancel(e) {
+    if (e.pointerId !== drag.pid) return;
+    endDrag(false);
+  }
+
+  function startDrag() {
+    clearTimeout(drag.timer);
+    const src = drag.src;
+    if (!src || !src.isConnected) { endDrag(false); return; }
+    drag.active = true;
+    drag.task = taskById.get(src.dataset.id);
+    const r = src.getBoundingClientRect();
+    drag.dx = Math.min(drag.sx - r.left, 40);
+    drag.dy = drag.sy - r.top;
+    const ghost = src.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.classList.remove('draggable', 'drag-source');
+    ghost.style.width = Math.min(r.width, 460) + 'px';
+    document.body.appendChild(ghost);
+    drag.ghost = ghost;
+    const ph = document.createElement('div');
+    ph.className = 'drop-ph';
+    drag.ph = ph;
+    src.classList.add('drag-source');
+    document.body.classList.add('dragging');
+    if (drag.ptype !== 'mouse' && navigator.vibrate) navigator.vibrate(15);
+    positionGhost();
+    updateDropTarget();
+    autoScrollLoop();
+  }
+
+  function positionGhost() {
+    if (drag.ghost) drag.ghost.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) rotate(1.2deg)`;
+  }
+
+  function setZone(zone) {
+    if (drag.zone === zone) return;
+    drag.zone?.classList.remove('drop-over');
+    drag.zone = zone;
+    zone?.classList.add('drop-over');
+  }
+
+  function updateDropTarget() {
+    const el = document.elementFromPoint(drag.x, drag.y);
+    const zone = el ? el.closest('[data-drop]') : null;
+    setZone(zone);
+    if (!zone || zone.dataset.drop.startsWith('day:')) { drag.ph.remove(); return; }
+    // Posição na folha: antes ou depois do item mais próximo do ponteiro (funciona com duas colunas)
+    const items = [...zone.querySelectorAll(':scope > .paper-item[data-id]')].filter((i) => i !== drag.src);
+    if (!items.length) { zone.appendChild(drag.ph); return; }
+    let best = null;
+    let bestD = Infinity;
+    for (const it of items) {
+      const r = it.getBoundingClientRect();
+      const cx = Math.max(r.left, Math.min(drag.x, r.right));
+      const cy = Math.max(r.top, Math.min(drag.y, r.bottom));
+      const d = Math.hypot(drag.x - cx, drag.y - cy);
+      if (d < bestD) { bestD = d; best = it; }
+    }
+    const r = best.getBoundingClientRect();
+    const ref = drag.y < r.top + r.height / 2 ? best : best.nextSibling;
+    if (drag.ph.parentElement !== zone || drag.ph.nextSibling !== ref) zone.insertBefore(drag.ph, ref);
+  }
+
+  // Rola a página (ou a coluna da semana) quando o ponteiro chega perto da borda
+  function autoScrollLoop() {
+    cancelAnimationFrame(drag.raf);
+    const step = () => {
+      if (!drag.active) return;
+      const edge = 70;
+      let dy = 0;
+      if (drag.y < edge) dy = -Math.ceil((edge - drag.y) / 5);
+      else if (drag.y > window.innerHeight - edge) dy = Math.ceil((drag.y - (window.innerHeight - edge)) / 5);
+      if (dy) {
+        const side = drag.zone ? drag.zone.closest('.week-side') : null;
+        if (side && side.scrollHeight > side.clientHeight) side.scrollTop += dy;
+        else window.scrollBy(0, dy);
+        updateDropTarget();
+      }
+      drag.raf = requestAnimationFrame(step);
+    };
+    drag.raf = requestAnimationFrame(step);
+  }
+
+  const LIST_NAMES = () => ({ todo: 'A fazer', doing: 'Em andamento', leticia: state.leticiaLabel || 'Ver com Letícia', someday: 'Sem data' });
+
+  function endDrag(drop) {
+    clearTimeout(drag.timer);
+    cancelAnimationFrame(drag.raf);
+    window.removeEventListener('pointermove', onDragPointerMove);
+    window.removeEventListener('pointerup', onDragPointerUp);
+    window.removeEventListener('pointercancel', onDragPointerCancel);
+    const wasActive = drag.active;
+    const { src, task, zone, ph } = drag;
+    let action = null;
+    if (wasActive && drop && zone && task) {
+      const target = zone.dataset.drop;
+      if (target.startsWith('day:')) {
+        const date = target.slice(4);
+        if (task.due_date !== date) action = { body: { due_date: date }, msg: `Prazo: ${fmtDate(date)}` };
+      } else if (ph && ph.parentElement === zone) {
+        const order = [...zone.children]
+          .filter((c) => c === ph || (c.dataset && c.dataset.id && c !== src))
+          .map((c) => (c === ph ? Number(task.id) : Number(c.dataset.id)));
+        const fromList = src.parentElement && src.parentElement.dataset ? src.parentElement.dataset.drop : null;
+        const sameList = fromList === target;
+        const before = sameList ? [...zone.querySelectorAll(':scope > .paper-item[data-id]')].map((c) => Number(c.dataset.id)) : null;
+        const unchanged = before && before.length === order.length && before.every((v, i) => v === order[i]);
+        if (!unchanged) {
+          if (target === 'someday' && (task.due_date || task.template_id)) {
+            toast('Tarefas com prazo ou recorrentes não vão para "Sem data". Tire o prazo antes.', 4500);
+          } else {
+            let msg = '';
+            if (!sameList) {
+              msg = `Movida para ${LIST_NAMES()[target]}`;
+              if (target === 'todo' && task.due_date) msg += ' (com prazo, ela fica na semana)';
+            }
+            action = { body: { list: target, order }, msg };
+            zone.insertBefore(src, ph); // mostra o resultado na hora
+          }
+        }
+      }
+    }
+    if (ph) ph.remove();
+    if (drag.ghost) drag.ghost.remove();
+    if (src) src.classList.remove('drag-source');
+    if (zone) zone.classList.remove('drop-over');
+    document.body.classList.remove('dragging');
+    Object.assign(drag, { active: false, src: null, task: null, ghost: null, ph: null, zone: null, pid: null });
+    if (wasActive) {
+      drag.suppressClick = true; // o clique que vem logo depois de soltar não abre o editor
+      setTimeout(() => { drag.suppressClick = false; }, 80);
+    }
+    if (action) {
+      api('POST', `/api/tasks/${task.id}/move`, action.body)
+        .then(() => { if (action.msg) toast(action.msg); })
+        .catch((e) => toast(e.message, 4500))
+        .finally(() => refresh());
+    }
+  }
+
+  window.addEventListener('click', (e) => { if (drag.suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+  document.addEventListener('touchmove', (e) => { if (drag.active) e.preventDefault(); }, { passive: false });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drag.active) endDrag(false); });
 
   // Linha de escrita no fim de cada folha: digitar + Enter cria a demanda.
   // Na folha "Sem data", um "quando ..." no texto vira a condição: "Comprar papel quando o papel acabar".
@@ -626,13 +825,13 @@
           t = await api('POST', '/api/tasks', { ...body, someday: true });
           toast(`Guardado: ${t.title}${t.trigger_text ? ` (${t.trigger_text})` : ''}`);
         } else {
-          t = await api('POST', '/api/tasks', { text });
+          t = await api('POST', '/api/tasks', { text, ...(opts.status ? { status: opts.status } : {}) });
           const extra = t.due_date ? ` (prazo ${fmtDate(t.due_date)})` : t.recurrence_label ? ` (${t.recurrence_label.toLowerCase()})` : '';
           toast(`Anotado: ${t.title}${extra}`);
         }
         input.value = '';
         await refresh();
-        $(opts.someday ? '#someday-body input' : '#undated-body input')?.focus();
+        $(opts.someday ? '#someday-body input' : opts.status ? `#${opts.status}-body input` : '#undated-body input')?.focus();
       } catch (err) {
         toast(err.message);
         input.disabled = false;
@@ -697,7 +896,9 @@
     main.appendChild(title);
 
     const meta = [];
-    if (opts.showDate && t.due_date) meta.push('venceu ' + fmtDate(t.due_date));
+    if (opts.showDate && t.due_date) meta.push((t.due_date < (state.today || todayYmd()) ? 'venceu ' : 'até ') + fmtDate(t.due_date));
+    if (!opts.inSheet && t.status === 'doing') meta.push('em andamento');
+    if (!opts.inSheet && t.status === 'leticia') meta.push((state.leticiaLabel || 'Ver com Letícia').toLowerCase());
     if (t.kind === 'scheduled') meta.push('entra na lista');
     if (t.kind === 'projected' || t.template_id) meta.push('↻' + (t.recurrence_label ? ' ' + t.recurrence_label.toLowerCase() : ''));
     if (t.someday && t.trigger_text) meta.push(t.trigger_text);
@@ -720,6 +921,7 @@
     });
 
     li.append(tick, main);
+    if (!t.virtual && !t.completed_at && t.id && !t.is_template) makeDraggable(li, t);
     return li;
   }
 
@@ -773,6 +975,21 @@
       box.appendChild(el);
     }
   }
+
+  // ---------- rótulo da lista "Ver com…" ----------
+  function applyLabels(labels) {
+    const l = (labels && labels.leticia) || 'Ver com Letícia';
+    state.leticiaLabel = l;
+    VIEW_TITLES.leticia = l;
+    $('#row-leticia-label').textContent = l;
+    $('#f-status-leticia').textContent = l;
+    if (state.view === 'leticia') $('#page-title').textContent = l;
+  }
+  $('#s-leticia-label').addEventListener('change', async () => {
+    const v = $('#s-leticia-label').value.trim() || 'Ver com Letícia';
+    try { await api('PUT', '/api/settings', { leticia_label: v }); applyLabels({ leticia: v }); toast('Nome salvo'); }
+    catch (e) { toast(e.message); }
+  });
 
   // ---------- tema ----------
   function applyTheme(t) {
@@ -948,6 +1165,7 @@
     $('#s-own').checked = settings.wa_accept_own === '1';
     $('#s-senders').value = settings.wa_allowed_senders;
     $('#s-offline').value = settings.wa_offline_alert_hours;
+    $('#s-leticia-label').value = settings.leticia_label || '';
     $('#s-notify-wa').checked = settings.notify_whatsapp === '1';
     $('#s-notify-push').checked = settings.notify_push === '1';
     $('#s-digest-time').value = settings.digest_time || '';

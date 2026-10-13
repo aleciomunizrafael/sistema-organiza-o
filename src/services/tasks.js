@@ -42,6 +42,22 @@ function cleanDateTime(v) {
   return `${m[1]}T${m[2]}:${m[3]}`;
 }
 
+export const STATUSES = ['todo', 'doing', 'leticia'];
+
+function cleanStatus(v) {
+  if (v == null || v === '') return 'todo';
+  if (!STATUSES.includes(v)) throw new Error(`Situação inválida: ${v}`);
+  return v;
+}
+
+/** Próxima posição: no fim da lista, ou no topo para prioridade alta. */
+function nextSortOrder(top = false) {
+  const r = getDb().prepare(`SELECT ${top ? 'MIN' : 'MAX'}(sort_order) AS v FROM tasks`).get();
+  const v = r?.v;
+  if (v == null) return 1;
+  return top ? v - 1 : v + 1;
+}
+
 function cleanText(v) {
   if (v == null) return '';
   if (typeof v !== 'string') throw new Error('Texto inválido');
@@ -84,10 +100,11 @@ export function createTask(input) {
   }
 
   const r = db.prepare(`
-    INSERT INTO tasks (title, notes, start_date, due_date, priority, someday, trigger_text, remind_at, source, source_sender, source_text,
-                       source_message_id, source_timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title, notes, startDate, dueDate, priority, someday, trigger, remindAt, source, input.source_sender ?? null, input.source_text ?? null,
+    INSERT INTO tasks (title, notes, start_date, due_date, priority, someday, trigger_text, remind_at, status, sort_order,
+                       source, source_sender, source_text, source_message_id, source_timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, notes, startDate, dueDate, priority, someday, trigger, remindAt, someday ? 'todo' : cleanStatus(input.status),
+    nextSortOrder(Boolean(priority)), source, input.source_sender ?? null, input.source_text ?? null,
     input.source_message_id ?? null, input.source_timestamp ?? null);
   return getTask(Number(r.lastInsertRowid));
 }
@@ -105,6 +122,7 @@ export function updateTask(id, input) {
   if (input.notes !== undefined) set('notes', cleanText(input.notes));
   if (input.priority !== undefined) set('priority', toBool(input.priority) ? 1 : 0);
   if (input.trigger_text !== undefined) set('trigger_text', cleanText(input.trigger_text) || null);
+  if (input.status !== undefined && !current.is_template) set('status', cleanStatus(input.status));
   if (input.remind_at !== undefined) {
     const r = cleanDateTime(input.remind_at);
     set('remind_at', r);
@@ -244,9 +262,9 @@ export function ensureOccurrence(templateId, today = todayYmd()) {
 
   const r = db.prepare(`
     INSERT OR IGNORE INTO tasks (title, notes, start_date, due_date, priority, source, source_sender,
-                                 template_id, occurrence_date)
-    VALUES (?, ?, ?, ?, ?, 'recurrence', ?, ?, ?)
-  `).run(tpl.title, tpl.notes, date, date, tpl.priority, tpl.source_sender, templateId, date);
+                                 template_id, occurrence_date, sort_order)
+    VALUES (?, ?, ?, ?, ?, 'recurrence', ?, ?, ?, ?)
+  `).run(tpl.title, tpl.notes, date, date, tpl.priority, tpl.source_sender, templateId, date, nextSortOrder());
   return r.changes ? getTask(Number(r.lastInsertRowid)) : null;
 }
 
@@ -266,6 +284,8 @@ export function templateNextDate(tpl, today = todayYmd()) {
   if (last && addDays(last, 1) > from) from = addDays(last, 1);
   return nextOccurrence(tpl.recurrence, anchorOf(tpl, today), from);
 }
+
+const MANUAL = 'COALESCE(sort_order, id), id';
 
 const ORDER_OPEN = `
   ORDER BY
@@ -288,7 +308,11 @@ export function listTasks(view, today = todayYmd()) {
       return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0 ${ORDER_OPEN}`).all(today).map(row);
     case 'someday':
       return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 1
-        ORDER BY priority DESC, created_at`).all().map(row);
+        ORDER BY ${MANUAL}`).all().map(row);
+    case 'doing':
+    case 'leticia':
+      return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND status = ?
+        ORDER BY ${MANUAL}`).all(view).map(row);
     case 'completed':
       return db.prepare(`SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NOT NULL
         ORDER BY completed_at DESC LIMIT 300`).all().map(row);
@@ -309,6 +333,8 @@ export function counts(today = todayYmd()) {
     scheduled: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0 AND start_date > ?', today),
     all: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 0'),
     someday: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 1'),
+    doing: one("SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND status = 'doing'"),
+    leticia: one("SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND status = 'leticia'"),
     completed: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 0 AND completed_at IS NOT NULL'),
     templates: one('SELECT COUNT(*) n FROM tasks WHERE is_template = 1 AND completed_at IS NULL'),
   };
@@ -376,25 +402,32 @@ export function weekView(start, today = todayYmd()) {
     || String(a.title).localeCompare(String(b.title), 'pt-BR');
   for (const day of days) day.tasks.sort(sortItems);
 
-  // "A fazer": abertas, sem prazo, já na lista
+  // "A fazer": abertas, sem prazo, já na lista, ainda não em andamento (ordem manual)
   const undated = db.prepare(`
     SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date IS NULL AND someday = 0
-      AND (start_date IS NULL OR start_date <= ?)
-    ORDER BY priority DESC, created_at
+      AND status = 'todo' AND (start_date IS NULL OR start_date <= ?)
+    ORDER BY ${MANUAL}
   `).all(today).map(row);
 
   // "Sem data": algum dia, quando a condição acontecer
   const someday = db.prepare(`
     SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND someday = 1
-    ORDER BY priority DESC, created_at
+    ORDER BY ${MANUAL}
   `).all().map(row);
+
+  // "Em andamento" e "Ver com Letícia": todas as abertas nessa situação, com ou sem prazo
+  const byStatus = (st) => db.prepare(`
+    SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND status = ? ORDER BY ${MANUAL}
+  `).all(st).map(row);
+  const doing = byStatus('doing');
+  const leticia = byStatus('leticia');
 
   const overdue = db.prepare(`
     SELECT * FROM tasks WHERE is_template = 0 AND completed_at IS NULL AND due_date < ? AND due_date < ?
     ORDER BY due_date, priority DESC
   `).all(start, today).map(row);
 
-  return { start, end, today, days, undated, someday, overdue };
+  return { start, end, today, days, undated, someday, doing, leticia, overdue };
 }
 
 /** Lembretes vencidos ainda não enviados (remind_at <= agora, tarefa aberta). */
@@ -407,4 +440,46 @@ export function dueReminders(nowLocal) {
 
 export function markReminded(id) {
   getDb().prepare('UPDATE tasks SET reminded_at = ? WHERE id = ?').run(nowIso(), id);
+}
+
+/**
+ * Move uma tarefa (arrastar e soltar):
+ * - list: 'todo' | 'doing' | 'leticia' | 'someday' (folha de destino)
+ * - order: ids da folha de destino na nova ordem (inclui a tarefa movida)
+ * - due_date: solta num dia da semana -> novo prazo
+ */
+export function moveTask(id, { list, order, due_date } = {}) {
+  const db = getDb();
+  const t = getTask(id);
+  if (!t || t.is_template) throw new Error('Tarefa não encontrada');
+  if (t.completed_at) throw new Error('Tarefa já concluída');
+
+  if (due_date !== undefined) {
+    if (!cleanDate(due_date)) throw new Error('Data inválida');
+    updateTask(id, { due_date });
+  }
+
+  if (list !== undefined) {
+    if (list === 'someday') {
+      if (t.due_date || t.template_id) throw new Error('Tarefas com prazo ou recorrentes não vão para "Sem data". Tire o prazo antes.');
+      updateTask(id, { someday: true, status: 'todo' });
+    } else {
+      const status = cleanStatus(list);
+      updateTask(id, { status, ...(t.someday ? { someday: false } : {}) });
+    }
+  }
+
+  if (Array.isArray(order) && order.length) {
+    const ids = order.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+    const stmt = db.prepare('UPDATE tasks SET sort_order = ? WHERE id = ? AND is_template = 0');
+    db.exec('BEGIN');
+    try {
+      ids.forEach((tid, i) => stmt.run(i + 1, tid));
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+  return getTask(id);
 }

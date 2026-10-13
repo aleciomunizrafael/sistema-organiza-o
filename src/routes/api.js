@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createTask, updateTask, deleteTask, getTask, listTasks, counts, weekView } from '../services/tasks.js';
+import { createTask, updateTask, deleteTask, getTask, listTasks, counts, weekView, moveTask } from '../services/tasks.js';
 import { getSettings, setSettings, listNotices, dismissNotice, DEFAULT_SETTINGS } from '../db/database.js';
 import { today, mondayOf, isValidYmd } from '../services/dates.js';
 import { extractDate, extractRecurrence } from '../services/dateParser.js';
@@ -18,7 +18,7 @@ export function apiRouter() {
   // ---------- tarefas ----------
   r.get('/tasks', (req, res) => {
     const view = String(req.query.view || 'today');
-    res.json({ today: today(), counts: counts(), tasks: listTasks(view) });
+    res.json({ today: today(), counts: counts(), tasks: listTasks(view), labels: { leticia: getSettings().leticia_label } });
   });
 
   // Visão semanal ("bloco"): ?start=YYYY-MM-DD (segunda-feira); padrão = semana atual
@@ -31,7 +31,7 @@ export function apiRouter() {
     let events = [];
     try { events = await gcal.fetchEvents(week.start, week.end); } catch { events = []; }
     for (const day of week.days) day.events = events.filter((e) => e.date === day.date);
-    res.json({ counts: counts(), ...week, calendar_connected: gcal.getStatus().pull && gcal.hasCredentials() });
+    res.json({ counts: counts(), ...week, labels: { leticia: getSettings().leticia_label }, calendar_connected: gcal.getStatus().pull && gcal.hasCredentials() });
   });
 
   r.get('/tasks/:id', (req, res) => {
@@ -61,6 +61,14 @@ export function apiRouter() {
   r.patch('/tasks/:id', (req, res) => {
     const t = updateTask(Number(req.params.id), req.body || {});
     if (!t) return res.status(404).json({ error: 'Tarefa não encontrada' });
+    gcal.scheduleSync();
+    res.json(t);
+  });
+
+  // Arrastar e soltar: muda de folha, de ordem ou de dia
+  r.post('/tasks/:id/move', (req, res) => {
+    const b = req.body || {};
+    const t = moveTask(Number(req.params.id), { list: b.list, order: b.order, due_date: b.due_date });
     gcal.scheduleSync();
     res.json(t);
   });

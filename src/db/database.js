@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   trigger_text TEXT,
   remind_at TEXT,
   reminded_at TEXT,
+  status TEXT NOT NULL DEFAULT 'todo',
+  sort_order REAL,
   completed_at TEXT,
   source TEXT NOT NULL DEFAULT 'manual',
   source_sender TEXT,
@@ -96,12 +98,19 @@ const TASK_COLUMNS = [
   ['trigger_text', 'TEXT'],
   ['remind_at', 'TEXT'],
   ['reminded_at', 'TEXT'],
+  ['status', "TEXT NOT NULL DEFAULT 'todo'"],
+  ['sort_order', 'REAL'],
 ];
 
 function migrate(d) {
   const cols = new Set(d.prepare('PRAGMA table_info(tasks)').all().map((c) => c.name));
   for (const [name, type] of TASK_COLUMNS) {
     if (!cols.has(name)) d.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`);
+  }
+  if (!cols.has('sort_order')) {
+    // Ordem manual inicial = a ordem que as listas mostravam (prioridade, depois criação)
+    d.exec(`UPDATE tasks SET sort_order = (
+      SELECT r FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY priority DESC, created_at, id) AS r FROM tasks) x WHERE x.id = tasks.id)`);
   }
 }
 
@@ -145,6 +154,7 @@ export const DEFAULT_SETTINGS = {
   notify_push: '1',
   digest_time: '',
   digest_days: '1,2,3,4,5',
+  leticia_label: 'Ver com Letícia',
   gcal_calendar_id: '',
   gcal_read_ids: '',
   gcal_push: '0',
